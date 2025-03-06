@@ -741,6 +741,32 @@ set.
   - **Type:** `string`
   - **Default:** ``
 
+- **`OIDC_OP_SET_ROLES_FROM_CLAIMS`**:
+  - **Description:** Set user roles from OIDC token claims
+  - **Type:** `boolean`
+  - **Default:** `False`
+
+- **`OIDC_OP_ROLE_CLAIM_PATH`**:
+  - **Description:** Set OIDC token path for extracting role info
+  - **Type:** `string`
+  - **Default:** `'realm_access.roles'`
+
+- **`OIDC_ROLE_CLAIM_ADMIN`**:
+  - **Description:** The OIDC role claim value which maps to the Admin role.
+  - **Type:** `string`
+  - **Default:** `admin`
+
+- **`OIDC_ROLE_CLAIM_DEFAULT`**:
+  - **Description:** The OIDC role claim value which maps to the default role.
+  - **Type:** `string`
+  - **Default:** `default`
+
+- **`OIDC_ACCESS_ATTRIBUTE_MAP`**
+  - **Description:** Set OIDC token details to extract. This string should be
+    JSON-decodable.
+  - **Type:** `string`
+  - **Default:** `{"given_name": "first_name", "family_name": "last_name"}`
+
 - **`OIDC_RP_SIGN_ALGO`**:
   - **Description:** Algorithm used by the ID provider to sign ID tokens
   - **Type:** `string`
