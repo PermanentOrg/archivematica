@@ -1,9 +1,9 @@
 """
 Configuration helper for MCPServer, MCPClient and Dashboard, used in:
 
-    - MCPClient/lib/settings/common.py
-    - MCPServer/lib/settings/common.py
-    - Dashboard/src/settings/base.py
+    - MCPClient/settings/common.py
+    - MCPServer/settings/common.py
+    - dashboard/settings/base.py
 
 Config. attributes are declared on those settings files and they can be defined
 by a dictionary indicating the 'section', 'option' and 'type' to be parsed by

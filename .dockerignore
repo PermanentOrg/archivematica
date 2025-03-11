@@ -12,7 +12,7 @@
 
 # Exclude
 src/dashboard/frontend/node_modules
-src/dashboard/src/media/js/build
+src/dashboard/media/js/build
 **/*~
 **/*.log
 **/node_modules
