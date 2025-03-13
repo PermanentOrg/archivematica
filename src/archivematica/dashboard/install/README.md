@@ -746,6 +746,18 @@ set.
   - **Type:** `string`
   - **Default:** `HS256`
 
+- **`OIDC_USE_PKCE`**:
+  - **Description:** Controls whether the authentication backend uses PKCE
+(Proof Key For Code Exchange) during the authorization code flow.
+  - **Type:** `boolean`
+  - **Default:** `false`
+
+- **`OIDC_CODE_CHALLENGE_METHOD`**:
+  - **Description:** Sets the method used to generate the PKCE code challenge.
+This only has an effect if ``OIDC_USE_PKCE`` is ``True``.
+  - **Type:** `string`
+  - **Default:** `S256`
+
 ### CSP variables
 
 **CSP support is experimental, please share your feedback!**

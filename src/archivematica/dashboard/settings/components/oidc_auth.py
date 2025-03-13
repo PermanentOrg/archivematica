@@ -51,6 +51,17 @@ if OIDC_OP_LOGOUT_ENDPOINT:
 
 OIDC_RP_SIGN_ALGO = os.environ.get("OIDC_RP_SIGN_ALGO", "HS256")
 
+OIDC_USE_PKCE = os.environ.get("OIDC_USE_PKCE", "false").lower() in (
+    "true",
+    "yes",
+    "on",
+    "1",
+)
+
+OIDC_PKCE_CODE_CHALLENGE_METHOD = os.environ.get(
+    "OIDC_PKCE_CODE_CHALLENGE_METHOD", "S256"
+)
+
 
 # Username is email address
 def _get_email(email):
