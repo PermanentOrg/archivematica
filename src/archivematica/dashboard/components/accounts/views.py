@@ -26,6 +26,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.shortcuts import render
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils.translation import gettext as _
 from mozilla_django_oidc.views import OIDCAuthenticationRequestView
@@ -76,10 +77,17 @@ def add(request):
     )
 
 
+def _show_api_key_alert(request, key):
+    messages.success(
+        request,
+        render_to_string("accounts/user_api_key_alert.html", {"key": key}, request),
+    )
+
+
 def profile(request):
     # If users are editable in this setup, go to the editable profile view
     if settings.ALLOW_USER_EDITS:
-        return edit(request)
+        return edit(request, return_view="accounts:profile")
 
     user = request.user
     user_profile = UserProfile.objects.get(user=user)
@@ -90,7 +98,9 @@ def profile(request):
         userprofileform = UserProfileForm(request.POST, instance=user_profile)
         if form.is_valid() and userprofileform.is_valid():
             if form.cleaned_data["regenerate_api_key"]:
-                generate_api_key(user)
+                key = generate_api_key(user)
+                _show_api_key_alert(request, key)
+
             userprofileform.save()
 
             return redirect("accounts:profile")
@@ -105,7 +115,7 @@ def profile(request):
     )
 
 
-def edit(request, id=None):
+def edit(request, id=None, return_view=None):
     # Forbidden if user isn't an admin and is trying to edit another user
     if str(request.user.id) != str(id) and id is not None:
         if request.user.is_superuser is False:
@@ -143,11 +153,16 @@ def edit(request, id=None):
             # regenerate API key if requested
             regenerate_api_key = request.POST.get("regenerate_api_key", "")
             if regenerate_api_key != "":
-                generate_api_key(user)
+                key = generate_api_key(user)
+                _show_api_key_alert(request, key)
 
             # determine where to redirect to
             if request.user.is_superuser:
-                return_view = "accounts:accounts_index"
+                return_view = request.POST.get("return_view")
+                if return_view:
+                    return_view = return_view
+                else:
+                    return_view = reverse("accounts:edit", kwargs={"id": user.pk})
             else:
                 return_view = "accounts:profile"
 
@@ -170,6 +185,7 @@ def edit(request, id=None):
             "userprofileform": userprofileform,
             "user": user,
             "title": title,
+            "return_view": return_view,
         },
     )
 
