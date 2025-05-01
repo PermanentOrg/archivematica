@@ -102,11 +102,11 @@
     "roles": {
       "realm": [
         {
-          "name": "admin",
+          "name": "admin-secondary",
           "description": "Administrator role"
         },
         {
-          "name": "default",
+          "name": "default-secondary",
           "description": "Default role"
         }
       ]
@@ -151,7 +151,7 @@
           }
         ],
         "realmRoles": [
-          "admin"
+          "admin-secondary"
         ]
       },
       {
@@ -170,7 +170,7 @@
           }
         ],
         "realmRoles": [
-          "default"
+          "default-secondary"
         ]
       }
     ]

@@ -72,15 +72,6 @@ class CustomOIDCBackend(OIDCAuthenticationBackend):
         self.USER_ROLE_ADMIN = "admin"
         self.USER_ROLE_DEFAULT = "default"
 
-        # The roles are ordered from highest to lowest permission in this list.
-        # This feature is used in OIDC authentication to determine the highest
-        # permission role of a user based on the claims received when multiple
-        # roles are received.
-        self.USER_ROLE_TO_ROLE_CLAIM_MAP = {
-            self.USER_ROLE_ADMIN: self.OIDC_ROLE_CLAIM_ADMIN,
-            self.USER_ROLE_DEFAULT: self.OIDC_ROLE_CLAIM_DEFAULT,
-        }
-
     def get_settings(self, attr: str, *args: Any) -> Any:
         if attr in [
             "OIDC_RP_CLIENT_ID",
@@ -93,6 +84,8 @@ class CustomOIDCBackend(OIDCAuthenticationBackend):
             "OIDC_OP_SET_ROLES_FROM_CLAIMS",
             "OIDC_OP_ROLE_CLAIM_PATH",
             "OIDC_ACCESS_ATTRIBUTE_MAP",
+            "OIDC_ROLE_CLAIM_ADMIN",
+            "OIDC_ROLE_CLAIM_DEFAULT",
         ]:
             # Retrieve the request object stored in the instance.
             request = getattr(self, "request", None)
@@ -126,6 +119,8 @@ class CustomOIDCBackend(OIDCAuthenticationBackend):
         )
         self.OIDC_OP_ROLE_CLAIM_PATH = self.get_settings("OIDC_OP_ROLE_CLAIM_PATH")
         self.OIDC_ACCESS_ATTRIBUTE_MAP = self.get_settings("OIDC_ACCESS_ATTRIBUTE_MAP")
+        self.OIDC_ROLE_CLAIM_ADMIN = self.get_settings("OIDC_ROLE_CLAIM_ADMIN")
+        self.OIDC_ROLE_CLAIM_DEFAULT = self.get_settings("OIDC_ROLE_CLAIM_DEFAULT")
 
         return super().authenticate(request, **kwargs)
 
@@ -214,8 +209,17 @@ class CustomOIDCBackend(OIDCAuthenticationBackend):
         if not isinstance(role_claims, list):
             return None
 
+        # The roles are ordered from highest to lowest permission in this list.
+        # This feature is used in OIDC authentication to determine the highest
+        # permission role of a user based on the claims received when multiple
+        # roles are received.
+        USER_ROLE_TO_ROLE_CLAIM_MAP = {
+            self.USER_ROLE_ADMIN: self.OIDC_ROLE_CLAIM_ADMIN,
+            self.USER_ROLE_DEFAULT: self.OIDC_ROLE_CLAIM_DEFAULT,
+        }
+
         # Iterate over USER_ROLE_TO_ROLE_CLAIM_MAP and return the first matching role.
-        for role_key, token_claim in self.USER_ROLE_TO_ROLE_CLAIM_MAP.items():
+        for role_key, token_claim in USER_ROLE_TO_ROLE_CLAIM_MAP.items():
             if token_claim in role_claims:
                 return role_key
 

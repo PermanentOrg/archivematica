@@ -567,6 +567,12 @@ def get_oidc_secondary_providers(
         role_claim_path = os.environ.get(
             f"OIDC_OP_ROLE_CLAIM_PATH_{provider_name}", "realm_access.roles"
         )
+        role_claim_admin = os.environ.get(
+            f"OIDC_ROLE_CLAIM_ADMIN_{provider_name}", "admin"
+        )
+        role_claim_default = os.environ.get(
+            f"OIDC_ROLE_CLAIM_DEFAULT_{provider_name}", "default"
+        )
         try:
             access_attribute_map = json.loads(
                 os.environ.get(
@@ -589,6 +595,8 @@ def get_oidc_secondary_providers(
                 "OIDC_OP_SET_ROLES_FROM_CLAIMS": set_roles_from_claims,
                 "OIDC_OP_ROLE_CLAIM_PATH": role_claim_path,
                 "OIDC_ACCESS_ATTRIBUTE_MAP": access_attribute_map,
+                "OIDC_ROLE_CLAIM_ADMIN": role_claim_admin,
+                "OIDC_ROLE_CLAIM_DEFAULT": role_claim_default,
             }
             providers[provider_name] = provider_config
 
