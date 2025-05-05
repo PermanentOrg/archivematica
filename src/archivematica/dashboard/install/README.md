@@ -784,6 +784,17 @@ This only has an effect if ``OIDC_USE_PKCE`` is ``True``.
   - **Type:** `string`
   - **Default:** `S256`
 
+- **`OIDC_USE_SESSION_REFRESH_MIDDLEWARE`**:
+  - **Description:** Allows existing sessions to be refreshed when OIDC tokens expire
+  - **Type:** `boolean`
+  - **Default:** `false`
+
+- **`OIDC_RENEW_ID_TOKEN_EXPIRY_SECONDS`**:
+  - **Description:** Time in seconds before reauthentication is required to
+    refresh the ID token. Should align with the token lifetime set by your OIDC Provider.
+  - **Type:** `integer`
+  - **Default:** `900`
+
 ### CSP variables
 
 **CSP support is experimental, please share your feedback!**

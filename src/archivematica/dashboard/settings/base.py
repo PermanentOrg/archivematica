@@ -665,6 +665,26 @@ if OIDC_AUTHENTICATION:
         "archivematica.dashboard.middleware.common.OidcCaptureQueryParamMiddleware",
     )
 
+    OIDC_USE_SESSION_REFRESH_MIDDLEWARE = os.environ.get(
+        "OIDC_USE_SESSION_REFRESH_MIDDLEWARE", "false"
+    ).lower() in (
+        "true",
+        "yes",
+        "on",
+        "1",
+    )
+
+    if OIDC_USE_SESSION_REFRESH_MIDDLEWARE:
+        OIDC_RENEW_ID_TOKEN_EXPIRY_SECONDS = int(
+            os.environ.get("OIDC_RENEW_ID_TOKEN_EXPIRY_SECONDS", 60 * 15)
+        )
+
+        MIDDLEWARE.insert(
+            MIDDLEWARE.index("django.contrib.auth.middleware.AuthenticationMiddleware")
+            + 1,
+            "mozilla_django_oidc.middleware.SessionRefresh",
+        )
+
     from archivematica.dashboard.settings.components.oidc_auth import *
 
 CSP_ENABLED = config.get("csp_enabled")
