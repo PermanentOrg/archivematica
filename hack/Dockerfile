@@ -238,8 +238,6 @@ ENV PYTHONPATH=/src/src
 FROM base AS archivematica-mcp-client
 
 ENV DJANGO_SETTINGS_MODULE=archivematica.MCPClient.settings.common
-ENV ARCHIVEMATICA_MCPCLIENT_ARCHIVEMATICACLIENTMODULES=/src/src/archivematica/MCPClient/archivematicaClientModules
-ENV ARCHIVEMATICA_MCPCLIENT_CLIENTASSETSDIRECTORY=/src/src/archivematica/MCPClient/assets/
 
 ENTRYPOINT ["pyenv", "exec", "python3", "-m", "archivematica.MCPClient.archivematicaClient"]
 
