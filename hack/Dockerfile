@@ -239,11 +239,6 @@ ENV DJANGO_SETTINGS_MODULE=archivematica.MCPClient.settings.common
 ENV ARCHIVEMATICA_MCPCLIENT_ARCHIVEMATICACLIENTMODULES=/src/src/archivematica/MCPClient/archivematicaClientModules
 ENV ARCHIVEMATICA_MCPCLIENT_CLIENTASSETSDIRECTORY=/src/src/archivematica/MCPClient/assets/
 
-# Some scripts in archivematica-fpr-admin executed by MCPClient rely on certain
-# files being available in this image (e.g. see https://git.io/vA1wF).
-COPY --link src/archivematica/archivematicaCommon/externals/fido/ /usr/lib/archivematica/archivematicaCommon/externals/fido/
-COPY --link src/archivematica/archivematicaCommon/externals/fiwalk_plugins/ /usr/lib/archivematica/archivematicaCommon/externals/fiwalk_plugins/
-
 ENTRYPOINT ["pyenv", "exec", "python3", "-m", "archivematica.MCPClient.archivematicaClient"]
 
 # -----------------------------------------------------------------------------
