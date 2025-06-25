@@ -934,6 +934,7 @@ class Job(models.Model):
             ("sipuuid", "jobtype", "createdtime", "createdtimedec"),
             ("sipuuid", "currentstep", "microservicegroup", "microservicechainlink"),
             ("jobtype", "currentstep"),
+            ("unittype", "sipuuid", "createdtime", "createdtimedec"),
         )
 
     @staticmethod
