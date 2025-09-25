@@ -181,6 +181,7 @@ RUN set -ex \
 		libimage-exiftool-perl \
 		libldap2-dev \
 		libmysqlclient-dev \
+		libreoffice \
 		libsasl2-dev \
 		libssl-dev \
 		libxml2-dev \
