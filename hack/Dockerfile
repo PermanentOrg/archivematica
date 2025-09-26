@@ -204,6 +204,7 @@ RUN set -ex \
 		unar \
 		unrar-free \
 		uuid \
+		wkhtmltopdf \
 	&& rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
 RUN set -ex \
