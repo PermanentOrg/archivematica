@@ -3,6 +3,7 @@
 
 # Include
 !/src/**
+!/tools/**
 !/pyproject.toml
 !/requirements*
 !/LICENSE

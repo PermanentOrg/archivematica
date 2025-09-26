@@ -215,7 +215,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 		tree \
 		unar \
 		unrar-free \
-		uuid
+		uuid \
+		wkhtmltopdf
 
 # Ensure the requested UID/GID do not clash with defaults in the Ubuntu base
 # image. We look up any existing user/group that already uses such identifiers
