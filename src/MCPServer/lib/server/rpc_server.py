@@ -353,12 +353,30 @@ class RPCServer(GearmanWorker):
         except KeyError as err:
             raise UnexpectedPayloadError(f"Missing parameter: {err}")
         model = model_attrs[0]
-        sql = """
-        SELECT SIPUUID,
-               MAX(UNIX_TIMESTAMP(createdTime) + createdTimeDec) AS timestamp
-            FROM Jobs
-            WHERE unitType=%s AND NOT SIPUUID LIKE '%%None%%'
-            GROUP BY SIPUUID;"""
+        if payload["type"] == "SIP":
+            sql = """
+            SELECT Jobs.SIPUUID,
+                   MAX(UNIX_TIMESTAMP(Jobs.createdTime) + Jobs.createdTimeDec) AS timestamp
+                FROM Jobs
+                JOIN SIPs
+                    ON Jobs.SIPUUID = SIPs.sipUUID
+                WHERE
+                    Jobs.unitType=%s
+                    AND NOT Jobs.SIPUUID LIKE '%%None%%'
+                    AND NOT SIPs.hidden
+                GROUP BY SIPUUID;"""
+        else:
+            sql = """
+            SELECT SIPUUID,
+                   MAX(UNIX_TIMESTAMP(Jobs.createdTime) + Jobs.createdTimeDec) AS timestamp
+                FROM Jobs
+                JOIN Transfers
+                    ON Jobs.SIPUUID = Transfers.transferUUID
+                WHERE
+                    Jobs.unitType=%s
+                    AND NOT Jobs.SIPUUID LIKE '%%None%%'
+                    AND NOT Transfers.hidden
+                GROUP BY SIPUUID;"""
         with connection.cursor() as cursor:
             cursor.execute(sql, (model_attrs[1],))
             sipuuids_and_timestamps = cursor.fetchall()
@@ -366,8 +384,6 @@ class RPCServer(GearmanWorker):
         objects = []
         for unit_id, timestamp in sipuuids_and_timestamps:
             unit = model.objects.get(pk=unit_id)
-            if unit.hidden:
-                continue
             item = {
                 "id": unit_id,
                 "uuid": unit_id,
