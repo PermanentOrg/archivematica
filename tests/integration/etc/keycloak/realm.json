@@ -11,6 +11,18 @@
     "attributes": {
       "adminEventsExpiration": "900"
     },
+    "roles": {
+      "realm": [
+        {
+          "name": "admin",
+          "description": "Administrator role"
+        },
+        {
+          "name": "default",
+          "description": "Default role"
+        }
+      ]
+    },
     "clients": [
       {
         "id": "am-dashboard",
@@ -27,7 +39,11 @@
         "standardFlowEnabled": true,
         "serviceAccountsEnabled": true,
         "authorizationServicesEnabled": true,
-        "publicClient": false
+        "publicClient": false,
+        "attributes": {
+          "pkce.required": "true",
+          "pkce.code.challenge.method": "S256"
+        }
       }
     ],
     "users": [
@@ -45,6 +61,28 @@
             "type": "password",
             "value": "demo"
           }
+        ],
+        "realmRoles": [
+          "default"
+        ]
+      },
+      {
+        "id": "admin",
+        "email": "admin@example.com",
+        "username": "admin",
+        "firstName": "Admin",
+        "lastName": "User",
+        "enabled": true,
+        "emailVerified": true,
+        "credentials": [
+          {
+            "temporary": false,
+            "type": "password",
+            "value": "admin"
+          }
+        ],
+        "realmRoles": [
+          "admin"
         ]
       }
     ]
@@ -60,6 +98,18 @@
     "adminEventsDetailsEnabled": true,
     "attributes": {
       "adminEventsExpiration": "900"
+    },
+    "roles": {
+      "realm": [
+        {
+          "name": "admin-secondary",
+          "description": "Administrator role"
+        },
+        {
+          "name": "default-secondary",
+          "description": "Default role"
+        }
+      ]
     },
     "clients": [
       {
@@ -77,15 +127,19 @@
         "standardFlowEnabled": true,
         "serviceAccountsEnabled": true,
         "authorizationServicesEnabled": true,
-        "publicClient": false
+        "publicClient": false,
+        "attributes": {
+          "pkce.required": "true",
+          "pkce.code.challenge.method": "S256"
+        }
       }
     ],
     "users": [
       {
-        "id": "support",
-        "email": "support@example.com",
-        "username": "support",
-        "firstName": "Support",
+        "id": "support-admin",
+        "email": "supportadmin@example.com",
+        "username": "supportadmin",
+        "firstName": "SupportAdmin",
         "lastName": "User",
         "enabled": true,
         "emailVerified": true,
@@ -95,6 +149,28 @@
             "type": "password",
             "value": "support"
           }
+        ],
+        "realmRoles": [
+          "admin-secondary"
+        ]
+      },
+      {
+        "id": "support-default",
+        "email": "supportdefault@example.com",
+        "username": "supportdefault",
+        "firstName": "SupportDefault",
+        "lastName": "User",
+        "enabled": true,
+        "emailVerified": true,
+        "credentials": [
+          {
+            "temporary": false,
+            "type": "password",
+            "value": "support"
+          }
+        ],
+        "realmRoles": [
+          "default-secondary"
         ]
       }
     ]

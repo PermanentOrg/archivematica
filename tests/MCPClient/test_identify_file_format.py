@@ -1,11 +1,12 @@
 import pathlib
 from unittest import mock
 
-import identify_file_format
 import pytest
-from client.job import Job
-from fpr import models as fprmodels
-from main import models
+
+from archivematica.dashboard.fpr import models as fprmodels
+from archivematica.dashboard.main import models
+from archivematica.MCPClient.client.job import Job
+from archivematica.MCPClient.clientScripts import identify_file_format
 
 
 @pytest.fixture
@@ -25,7 +26,7 @@ def sip_file_path(
 def job(sip_file: models.File, sip_file_path: pathlib.Path) -> mock.Mock:
     return mock.Mock(
         args=[
-            "identify_file_format.py",
+            "archivematica.MCPClient.clientScripts.identify_file_format.py",
             "True",
             str(sip_file_path),
             str(sip_file.uuid),
@@ -81,7 +82,7 @@ def test_job_fails_if_identification_command_does_not_exist(job: mock.Mock) -> N
 
 
 @pytest.mark.django_db
-@mock.patch("identify_file_format.executeOrRun")
+@mock.patch("archivematica.MCPClient.clientScripts.identify_file_format.executeOrRun")
 def test_job_fails_if_format_identification_command_fails(
     execute_or_run: mock.Mock,
     job: mock.Mock,
@@ -100,7 +101,7 @@ def test_job_fails_if_format_identification_command_fails(
 
 
 @pytest.mark.django_db
-@mock.patch("identify_file_format.executeOrRun")
+@mock.patch("archivematica.MCPClient.clientScripts.identify_file_format.executeOrRun")
 def test_job_fails_if_identification_rule_does_not_exist(
     execute_or_run: mock.Mock,
     job: mock.Mock,
@@ -134,7 +135,7 @@ def test_job_fails_if_identification_rule_does_not_exist(
 
 
 @pytest.mark.django_db
-@mock.patch("identify_file_format.executeOrRun")
+@mock.patch("archivematica.MCPClient.clientScripts.identify_file_format.executeOrRun")
 def test_job_fails_if_multiple_identification_rules_exist(
     execute_or_run: mock.Mock,
     job: mock.Mock,
@@ -175,7 +176,7 @@ def test_job_fails_if_multiple_identification_rules_exist(
 
 
 @pytest.mark.django_db
-@mock.patch("identify_file_format.executeOrRun")
+@mock.patch("archivematica.MCPClient.clientScripts.identify_file_format.executeOrRun")
 def test_job_fails_if_format_version_does_not_exist(
     execute_or_run: mock.Mock,
     job: mock.Mock,
@@ -204,11 +205,15 @@ def test_job_fails_if_format_version_does_not_exist(
 
 
 @pytest.mark.django_db
-@mock.patch("identify_file_format.executeOrRun", return_value=(0, "success!", ""))
+@mock.patch(
+    "archivematica.MCPClient.clientScripts.identify_file_format.executeOrRun",
+    return_value=(0, "success!", ""),
+)
 def test_job_saves_unit_variable_indicating_file_format_identification_use(
     execute_or_run: mock.Mock,
     job: mock.Mock,
     sip: models.SIP,
+    idcommand: fprmodels.IDCommand,
 ) -> None:
     identify_file_format.call([job])
 
@@ -216,14 +221,14 @@ def test_job_saves_unit_variable_indicating_file_format_identification_use(
         models.UnitVariable.objects.filter(
             unituuid=sip.pk,
             variable="replacementDict",
-            variablevalue="{'%IDCommand%': 'True'}",
+            variablevalue='{"%IDCommand%": "True"}',
         ).count()
         == 1
     )
 
 
 @pytest.mark.django_db
-@mock.patch("identify_file_format.executeOrRun")
+@mock.patch("archivematica.MCPClient.clientScripts.identify_file_format.executeOrRun")
 def test_job_adds_file_format_version(
     execute_or_run: mock.Mock,
     job: mock.Mock,
@@ -260,13 +265,14 @@ def test_job_adds_file_format_version(
 
 
 @pytest.mark.django_db
-@mock.patch("identify_file_format.executeOrRun")
+@mock.patch("archivematica.MCPClient.clientScripts.identify_file_format.executeOrRun")
 def test_job_updates_file_format_version(
     execute_or_run: mock.Mock,
     job: mock.Mock,
     sip_file: models.File,
     format: fprmodels.Format,
     sip_file_format_version: models.FileFormatVersion,
+    idcommand: fprmodels.IDCommand,
 ) -> None:
     command_output = "fmt/111"
     execute_or_run.return_value = (0, command_output, "")
@@ -288,7 +294,7 @@ def test_job_updates_file_format_version(
 
 
 @pytest.mark.django_db
-@mock.patch("identify_file_format.executeOrRun")
+@mock.patch("archivematica.MCPClient.clientScripts.identify_file_format.executeOrRun")
 def test_job_adds_successful_format_identification_data(
     execute_or_run: mock.Mock,
     job: mock.Mock,
@@ -329,7 +335,7 @@ def test_job_adds_successful_format_identification_data(
 
 
 @pytest.mark.django_db
-@mock.patch("identify_file_format.executeOrRun")
+@mock.patch("archivematica.MCPClient.clientScripts.identify_file_format.executeOrRun")
 def test_job_falls_back_to_identification_rule_if_format_version_does_not_exist(
     execute_or_run: mock.Mock,
     job: mock.Mock,

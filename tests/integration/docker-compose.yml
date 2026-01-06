@@ -4,7 +4,7 @@ name: am-integration
 services:
 
   mysql:
-    image: "percona:8.0"
+    image: "percona/percona-server:8.0.43-34"
     command: "--character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci"
     environment:
       MYSQL_ROOT_PASSWORD: "root"
@@ -29,7 +29,7 @@ services:
         TARGET: "archivematica-dashboard-integration-tests"
         USER_ID: ${USER_ID:-1000}
         GROUP_ID: ${GROUP_ID:-1000}
-        UBUNTU_VERSION: ${UBUNTU_VERSION:-22.04}
+        UBUNTU_VERSION: ${UBUNTU_VERSION:-24.04}
         PYTHON_VERSION: ${PYTHON_VERSION:-3.9}
     entrypoint: ""
     working_dir: "/src"
@@ -42,9 +42,7 @@ services:
       DJANGO_ALLOW_ASYNC_UNSAFE: true
       FORWARDED_ALLOW_IPS: "*"
       AM_GUNICORN_ACCESSLOG: "/dev/null"
-      AM_GUNICORN_RELOAD: "true"
-      AM_GUNICORN_RELOAD_ENGINE: "auto"
-      DJANGO_SETTINGS_MODULE: "settings.testmysql"
+      DJANGO_SETTINGS_MODULE: "archivematica.dashboard.settings.testmysql"
       ARCHIVEMATICA_DASHBOARD_DASHBOARD_GEARMAN_SERVER: "gearmand:4730"
       ARCHIVEMATICA_DASHBOARD_DASHBOARD_ELASTICSEARCH_SERVER: "elasticsearch:9200"
       ARCHIVEMATICA_DASHBOARD_DASHBOARD_PROMETHEUS_ENABLED: "1"
@@ -53,7 +51,12 @@ services:
       ARCHIVEMATICA_DASHBOARD_CLIENT_HOST: "mysql"
       ARCHIVEMATICA_DASHBOARD_CLIENT_DATABASE: "MCP"
       ARCHIVEMATICA_DASHBOARD_SEARCH_ENABLED: "${AM_SEARCH_ENABLED:-true}"
+      ARCHIVEMATICA_DASHBOARD_DASHBOARD_SESSION_COOKIE_SECURE: "false"
+      ARCHIVEMATICA_DASHBOARD_DASHBOARD_SESSION_COOKIE_SAMESITE: "Lax"
+      ARCHIVEMATICA_DASHBOARD_DASHBOARD_CSRF_COOKIE_SECURE: "false"
       ARCHIVEMATICA_DASHBOARD_OIDC_AUTHENTICATION: "true"
+      OIDC_USE_PKCE: "true"
+      OIDC_PKCE_CODE_CHALLENGE_METHOD: "S256"
       OIDC_RP_CLIENT_ID: "am-dashboard"
       OIDC_RP_CLIENT_SECRET: "example-secret"
       OIDC_OP_AUTHORIZATION_ENDPOINT: "http://keycloak:8080/realms/demo/protocol/openid-connect/auth"
@@ -61,6 +64,12 @@ services:
       OIDC_OP_USER_ENDPOINT: "http://keycloak:8080/realms/demo/protocol/openid-connect/userinfo"
       OIDC_OP_JWKS_ENDPOINT: "http://keycloak:8080/realms/demo/protocol/openid-connect/certs"
       OIDC_OP_LOGOUT_ENDPOINT: "http://keycloak:8080/realms/demo/protocol/openid-connect/logout"
+      OIDC_OP_SET_ROLES_FROM_CLAIMS: "true"
+      OIDC_OP_ROLE_CLAIM_PATH: "realm_access.roles"
+      OIDC_ROLE_CLAIM_ADMIN: "admin"
+      OIDC_ROLE_CLAIM_DEFAULT: "default"
+      OIDC_ACCESS_ATTRIBUTE_MAP: >
+        {"given_name": "first_name", "family_name": "last_name", "realm_access": "realm_access"}
       OIDC_SECONDARY_PROVIDER_NAMES: "secondary"
       OIDC_RP_CLIENT_ID_SECONDARY: "am-dashboard-secondary"
       OIDC_RP_CLIENT_SECRET_SECONDARY: "example-secret-secondary"
@@ -69,6 +78,12 @@ services:
       OIDC_OP_USER_ENDPOINT_SECONDARY: "http://keycloak:8080/realms/secondary/protocol/openid-connect/userinfo"
       OIDC_OP_JWKS_ENDPOINT_SECONDARY: "http://keycloak:8080/realms/secondary/protocol/openid-connect/certs"
       OIDC_OP_LOGOUT_ENDPOINT_SECONDARY: "http://keycloak:8080/realms/secondary/protocol/openid-connect/logout"
+      OIDC_OP_SET_ROLES_FROM_CLAIMS_SECONDARY: "true"
+      OIDC_OP_ROLE_CLAIM_PATH_SECONDARY: "realm_access.roles"
+      OIDC_ROLE_CLAIM_ADMIN_SECONDARY: "admin-secondary"
+      OIDC_ROLE_CLAIM_DEFAULT_SECONDARY: "default-secondary"
+      OIDC_ACCESS_ATTRIBUTE_MAP_SECONDARY: >
+        {"given_name": "first_name", "family_name": "last_name", "realm_access": "realm_access"}
       OIDC_RP_SIGN_ALGO: "RS256"
     volumes:
       - "../../:/src"
@@ -80,7 +95,7 @@ services:
       - "keycloak"
 
   keycloak:
-    image: "quay.io/keycloak/keycloak:latest"
+    image: "quay.io/keycloak/keycloak:26.3.3-0"
     command: ["start-dev", "--import-realm"]
     restart: "unless-stopped"
     environment:

@@ -27,7 +27,7 @@ volumes:
 services:
 
   mysql:
-    image: "percona:8.0"
+    image: "percona/percona-server:8.0.43-34"
     command: "--character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci"
     environment:
       MYSQL_ROOT_PASSWORD: "12345"
@@ -43,7 +43,7 @@ services:
       - "SYS_NICE"
 
   elasticsearch:
-    image: "docker.elastic.co/elasticsearch/elasticsearch:6.8.23"
+    image: "docker.elastic.co/elasticsearch/elasticsearch:8.19.3"
     environment:
       - "cluster.name=am-cluster"
       - "node.name=am-node"
@@ -51,6 +51,9 @@ services:
       - "bootstrap.memory_lock=true"
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
       - "cluster.routing.allocation.disk.threshold_enabled=${ELASTICSEARCH_DISK_THRESHOLD_ENABLED:-true}"
+      - "discovery.type=single-node"
+      - "xpack.security.enabled=false"
+      - "xpack.security.transport.ssl.enabled=false"
     ulimits:
       memlock:
         soft: -1
@@ -58,37 +61,39 @@ services:
     healthcheck:
       test: [
         "CMD-SHELL",
-        "curl -fsSL http://localhost:9200/_cat/health?h=status | sed -r 's/^[[:space:]]+|[[:space:]]+$//g' | grep -q -E 'green|yellow'",
+        "curl -fsSL http://localhost:9200/_cat/health?h=status | grep -q -E 'green|yellow'",
       ]
       interval: 5s
       timeout: 5s
       retries: 5
-      start_period: 15s
+      start_period: 25s
     volumes:
       - "elasticsearch_data:/usr/share/elasticsearch/data"
     ports:
       - "127.0.0.1:62002:9200"
 
   gearmand:
-    image: "artefactual/gearmand:1.1.18-alpine"
+    image: "artefactual/gearmand:1.1.22-alpine"
     command: "--queue-type=builtin"
     user: "gearman"
     ports:
       - "127.0.0.1:62004:4730"
 
   clamavd:
-    image: "artefactual/clamav:latest"
+    image: "clamav/clamav-debian:1.4.3-57"
+    user: "clamav"
+    entrypoint: "/init-unprivileged"
     environment:
-      CLAMAV_MAX_FILE_SIZE: "42"
-      CLAMAV_MAX_SCAN_SIZE: "42"
-      CLAMAV_MAX_STREAM_LENGTH: "100"
+      CLAMD_CONF_MaxFileSize: "42M"
+      CLAMD_CONF_MaxScanSize: "42M"
+      CLAMD_CONF_StreamMaxLength: "100M"
     ports:
       - "127.0.0.1:62006:3310"
     volumes:
       - "archivematica_pipeline_data:/var/archivematica/sharedDirectory:ro"
 
   nginx:
-    image: "nginx:stable-alpine"
+    image: "nginx:1.29.1"
     volumes:
       - "./etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro"
       - "./etc/nginx/conf.d/archivematica.conf:/etc/nginx/conf.d/archivematica.conf:ro"
@@ -105,11 +110,11 @@ services:
         TARGET: "archivematica-mcp-server"
         USER_ID: ${USER_ID:-1000}
         GROUP_ID: ${GROUP_ID:-1000}
-        UBUNTU_VERSION: ${UBUNTU_VERSION:-22.04}
+        UBUNTU_VERSION: ${UBUNTU_VERSION:-24.04}
         PYTHON_VERSION: ${PYTHON_VERSION:-3.9}
     environment:
       DJANGO_SECRET_KEY: "12345"
-      DJANGO_SETTINGS_MODULE: "settings.common"
+      DJANGO_SETTINGS_MODULE: "archivematica.MCPServer.settings.common"
       ARCHIVEMATICA_MCPSERVER_CLIENT_USER: "archivematica"
       ARCHIVEMATICA_MCPSERVER_CLIENT_PASSWORD: "demo"
       ARCHIVEMATICA_MCPSERVER_CLIENT_HOST: "mysql"
@@ -133,16 +138,16 @@ services:
         TARGET: "archivematica-mcp-client"
         USER_ID: ${USER_ID:-1000}
         GROUP_ID: ${GROUP_ID:-1000}
-        UBUNTU_VERSION: ${UBUNTU_VERSION:-22.04}
+        UBUNTU_VERSION: ${UBUNTU_VERSION:-24.04}
         PYTHON_VERSION: ${PYTHON_VERSION:-3.9}
     environment:
       DJANGO_SECRET_KEY: "12345"
-      DJANGO_SETTINGS_MODULE: "settings.common"
+      DJANGO_SETTINGS_MODULE: "archivematica.MCPClient.settings.common"
       ARCHIVEMATICA_MCPCLIENT_CLIENT_USER: "archivematica"
       ARCHIVEMATICA_MCPCLIENT_CLIENT_PASSWORD: "demo"
       ARCHIVEMATICA_MCPCLIENT_CLIENT_HOST: "mysql"
       ARCHIVEMATICA_MCPCLIENT_CLIENT_DATABASE: "MCP"
-      ARCHIVEMATICA_MCPCLIENT_MCPCLIENT_ELASTICSEARCHSERVER: "elasticsearch:9200"
+      ARCHIVEMATICA_MCPCLIENT_MCPCLIENT_ELASTICSEARCHSERVER: "http://elasticsearch:9200"
       ARCHIVEMATICA_MCPCLIENT_MCPCLIENT_MCPARCHIVEMATICASERVER: "gearmand:4730"
       ARCHIVEMATICA_MCPCLIENT_MCPCLIENT_SEARCH_ENABLED: "${AM_SEARCH_ENABLED:-true}"
       ARCHIVEMATICA_MCPCLIENT_MCPCLIENT_CAPTURE_CLIENT_SCRIPT_OUTPUT: "${AM_CAPTURE_CLIENT_SCRIPT_OUTPUT:-true}"
@@ -155,6 +160,7 @@ services:
       ARCHIVEMATICA_MCPCLIENT_MCPCLIENT_PROMETHEUS_BIND_ADDRESS: "0.0.0.0"
       ARCHIVEMATICA_MCPCLIENT_MCPCLIENT_METADATA_XML_VALIDATION_ENABLED: "true"
       METADATA_XML_VALIDATION_SETTINGS_FILE: "/src/hack/submodules/archivematica-sampledata/xml-validation/xml_validation.py"
+      XML_CATALOG_FILES: "/src/hack/submodules/archivematica-sampledata/xml-validation/catalog.xml"
     volumes:
       - "../:/src"
       - "archivematica_pipeline_data:/var/archivematica/sharedDirectory:rw"
@@ -173,22 +179,23 @@ services:
         TARGET: "archivematica-dashboard"
         USER_ID: ${USER_ID:-1000}
         GROUP_ID: ${GROUP_ID:-1000}
-        UBUNTU_VERSION: ${UBUNTU_VERSION:-22.04}
+        UBUNTU_VERSION: ${UBUNTU_VERSION:-24.04}
         PYTHON_VERSION: ${PYTHON_VERSION:-3.9}
     environment:
       FORWARDED_ALLOW_IPS: "*"
       AM_GUNICORN_ACCESSLOG: "/dev/null"
-      AM_GUNICORN_RELOAD: "true"
-      AM_GUNICORN_RELOAD_ENGINE: "auto"
-      DJANGO_SETTINGS_MODULE: "settings.local"
+      AM_GUNICORN_RELOAD: "${AM_GUNICORN_RELOAD:-false}"
+      DJANGO_SETTINGS_MODULE: "archivematica.dashboard.settings.local"
       ARCHIVEMATICA_DASHBOARD_DASHBOARD_GEARMAN_SERVER: "gearmand:4730"
-      ARCHIVEMATICA_DASHBOARD_DASHBOARD_ELASTICSEARCH_SERVER: "elasticsearch:9200"
+      ARCHIVEMATICA_DASHBOARD_DASHBOARD_ELASTICSEARCH_SERVER: "http://elasticsearch:9200"
       ARCHIVEMATICA_DASHBOARD_DASHBOARD_PROMETHEUS_ENABLED: "1"
       ARCHIVEMATICA_DASHBOARD_CLIENT_USER: "archivematica"
       ARCHIVEMATICA_DASHBOARD_CLIENT_PASSWORD: "demo"
       ARCHIVEMATICA_DASHBOARD_CLIENT_HOST: "mysql"
       ARCHIVEMATICA_DASHBOARD_CLIENT_DATABASE: "MCP"
       ARCHIVEMATICA_DASHBOARD_SEARCH_ENABLED: "${AM_SEARCH_ENABLED:-true}"
+      ARCHIVEMATICA_DASHBOARD_DASHBOARD_SESSION_COOKIE_SECURE: "false"
+      ARCHIVEMATICA_DASHBOARD_DASHBOARD_CSRF_COOKIE_SECURE: "false"
     volumes:
       - "../:/src"
       - "archivematica_pipeline_data:/var/archivematica/sharedDirectory:rw"
@@ -209,17 +216,18 @@ services:
         TARGET: "archivematica-storage-service"
         USER_ID: ${USER_ID:-1000}
         GROUP_ID: ${GROUP_ID:-1000}
-        UBUNTU_VERSION: ${UBUNTU_VERSION:-22.04}
+        UBUNTU_VERSION: ${UBUNTU_VERSION:-24.04}
         PYTHON_VERSION: ${PYTHON_VERSION:-3.9}
     environment:
       FORWARDED_ALLOW_IPS: "*"
       SS_GUNICORN_ACCESSLOG: "/dev/null"
-      SS_GUNICORN_RELOAD: "true"
-      SS_GUNICORN_RELOAD_ENGINE: "auto"
-      DJANGO_SETTINGS_MODULE: "storage_service.settings.local"
+      SS_GUNICORN_RELOAD: "${SS_GUNICORN_RELOAD:-false}"
+      DJANGO_SETTINGS_MODULE: "archivematica.storage_service.storage_service.settings.local"
       SS_DB_URL: "mysql://archivematica:demo@mysql/SS"
       SS_GNUPG_HOME_PATH: "/var/archivematica/storage_service/.gnupg"
       SS_PROMETHEUS_ENABLED: "true"
+      SESSION_COOKIE_SECURE: "false"
+      CSRF_COOKIE_SECURE: "false"
     volumes:
       - "./submodules/archivematica-storage-service/:/src/"
       - "./submodules/archivematica-sampledata/:/home/archivematica/archivematica-sampledata/:ro"

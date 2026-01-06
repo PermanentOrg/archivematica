@@ -1,11 +1,12 @@
 from django.test import TestCase
-from fpr.forms import FPRuleForm
-from fpr.forms import IDToolForm
-from fpr.models import Format
-from fpr.models import FormatGroup
-from fpr.models import FormatVersion
-from fpr.models import FPCommand
-from fpr.models import FPRule
+
+from archivematica.dashboard.fpr.forms import FPRuleForm
+from archivematica.dashboard.fpr.forms import IDToolForm
+from archivematica.dashboard.fpr.models import Format
+from archivematica.dashboard.fpr.models import FormatGroup
+from archivematica.dashboard.fpr.models import FormatVersion
+from archivematica.dashboard.fpr.models import FPCommand
+from archivematica.dashboard.fpr.models import FPRule
 
 
 class TestForms(TestCase):
@@ -36,7 +37,7 @@ class TestForms(TestCase):
         self.assertFalse(form.is_valid())
         self.assertEqual(
             form.non_field_errors(),
-            ["An identical FP rule already exists." f" See rule {fprule.uuid}."],
+            [f"An identical FP rule already exists. See rule {fprule.uuid}."],
         )
 
     @staticmethod

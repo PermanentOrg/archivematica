@@ -1,19 +1,14 @@
 import uuid
 
 import pytest
-from components import helpers
 from django.test import Client
 from django.urls import reverse
-from fpr import models
 
-
-@pytest.fixture
-def dashboard_uuid() -> None:
-    helpers.set_setting("dashboard_uuid", str(uuid.uuid4()))
+from archivematica.dashboard.fpr import models
 
 
 @pytest.mark.django_db
-def test_idcommand_create(dashboard_uuid: None, admin_client: Client) -> None:
+def test_idcommand_create(dashboard_uuid: uuid.UUID, admin_client: Client) -> None:
     url = reverse("fpr:idcommand_create")
     tool = models.IDTool.objects.create(
         uuid="37f3bd7c-bb24-4899-b7c4-785ff1c764ac",
@@ -32,7 +27,7 @@ def test_idcommand_create(dashboard_uuid: None, admin_client: Client) -> None:
 
 
 @pytest.mark.django_db
-def test_fpcommand_create(dashboard_uuid: None, admin_client: Client) -> None:
+def test_fpcommand_create(dashboard_uuid: uuid.UUID, admin_client: Client) -> None:
     url = reverse("fpr:fpcommand_create")
     tool = models.FPTool.objects.create(
         uuid="37f3bd7c-bb24-4899-b7c4-785ff1c764ac",
@@ -51,17 +46,32 @@ def test_fpcommand_create(dashboard_uuid: None, admin_client: Client) -> None:
 
 
 @pytest.mark.django_db
-def test_fpcommand_edit(dashboard_uuid: None, admin_client: Client) -> None:
-    fpcommand_id = "41112047-7ddf-4bf0-9156-39fe96b32d53"
+def test_fpcommand_edit(dashboard_uuid: uuid.UUID, admin_client: Client) -> None:
+    tool = models.FPTool.objects.create()
+    verification_command = models.FPCommand.objects.create(
+        command_usage="verification", tool=tool
+    )
+    format_version = models.FormatVersion.objects.create(
+        format=models.Format.objects.create(group=models.FormatGroup.objects.create())
+    )
+    command = models.FPCommand.objects.create(
+        description="Copying file to access directory",
+        enabled=True,
+        command_usage="normalization",
+        tool=tool,
+        output_format=format_version,
+    )
+
+    fpcommand_id = str(command.uuid)
     url = reverse("fpr:fpcommand_edit", args=[fpcommand_id])
 
     fpcommand = models.FPCommand.active.get(uuid=fpcommand_id)
     assert fpcommand.description == "Copying file to access directory"
 
     form_data = {
-        "verification_command": ["ef3ea000-0c3c-4cae-adc2-aa2a6ccbffce"],
+        "verification_command": [str(verification_command.uuid)],
         "description": ["new description"],
-        "tool": ["0efc346e-6373-4799-819d-17cc0f21f827"],
+        "tool": [str(tool.uuid)],
         "event_detail_command": [""],
         "output_location": [
             "%outputDirectory%%prefix%%fileName%%postfix%%fileExtensionWithDot%"
@@ -73,7 +83,7 @@ def test_fpcommand_edit(dashboard_uuid: None, admin_client: Client) -> None:
         "csrfmiddlewaretoken": [
             "k5UUufiJuSOLNOGJYlU2ODow5iKPhOuLc9Q0EmUoIXsQLZ7r5Ede7Pf0pSQEm0lP"
         ],
-        "output_format": ["0ab4cd40-90e7-4d75-b294-498177b3897d"],
+        "output_format": [str(format_version.uuid)],
         "script_type": ["command"],
     }
     resp = admin_client.post(url, follow=True, data=form_data)
@@ -89,8 +99,19 @@ def test_fpcommand_edit(dashboard_uuid: None, admin_client: Client) -> None:
 
 
 @pytest.mark.django_db
-def test_fpcommand_delete(dashboard_uuid: None, admin_client: Client) -> None:
-    fpcommand_id = "0fd7935a-ed0d-4f67-aa25-1b44684f6aca"
+def test_fpcommand_delete(dashboard_uuid: uuid.UUID, admin_client: Client) -> None:
+    command = models.FPCommand.objects.create(
+        enabled=True,
+        command_usage="normalization",
+        tool=models.FPTool.objects.create(),
+        output_format=models.FormatVersion.objects.create(
+            format=models.Format.objects.create(
+                group=models.FormatGroup.objects.create()
+            )
+        ),
+    )
+
+    fpcommand_id = str(command.uuid)
     url = reverse("fpr:fpcommand_delete", args=[fpcommand_id])
 
     assert models.FPCommand.active.filter(uuid=fpcommand_id).exists()
@@ -102,8 +123,15 @@ def test_fpcommand_delete(dashboard_uuid: None, admin_client: Client) -> None:
 
 
 @pytest.mark.django_db
-def test_fpcommand_revisions(dashboard_uuid: None, admin_client: Client) -> None:
-    fpcommand_id = "cb335c49-e6ce-445f-a774-494a6f2300c6"
+def test_fpcommand_revisions(dashboard_uuid: uuid.UUID, admin_client: Client) -> None:
+    initial_command = models.FPCommand.objects.create(
+        description="initial command", tool=models.FPTool.objects.create()
+    )
+    new_command = models.FPCommand.objects.create(
+        description="new command", replaces=initial_command, tool=initial_command.tool
+    )
+
+    fpcommand_id = str(new_command.uuid)
     url = reverse("fpr:revision_list", args=["fpcommand", fpcommand_id])
     fpcommand = models.FPCommand.active.get(uuid=fpcommand_id)
 
@@ -117,10 +145,10 @@ def test_fpcommand_revisions(dashboard_uuid: None, admin_client: Client) -> None
 
 @pytest.mark.django_db
 def test_format_create_creates_format(
-    dashboard_uuid: None, admin_client: Client
+    dashboard_uuid: uuid.UUID, admin_client: Client
 ) -> None:
     # Add a new format to the Unknown group.
-    unknown_group = models.FormatGroup.objects.get(description="Unknown")
+    unknown_group, _ = models.FormatGroup.objects.get_or_create(description="Unknown")
     format_description = "My test format"
 
     assert models.Format.objects.filter(description=format_description).count() == 0
@@ -144,15 +172,19 @@ def test_format_create_creates_format(
 
 
 @pytest.mark.django_db
-def test_format_edit_updates_format(dashboard_uuid: None, admin_client: Client) -> None:
+def test_format_edit_updates_format(
+    dashboard_uuid: uuid.UUID, admin_client: Client
+) -> None:
     # Get details of the Matroska format from the Video group.
-    video_group = models.FormatGroup.objects.get(description="Video")
-    format = models.Format.objects.get(description="Matroska", group=video_group)
+    video_group, _ = models.FormatGroup.objects.get_or_create(description="Video")
+    format, _ = models.Format.objects.get_or_create(
+        description="Matroska", group=video_group
+    )
     format_uuid = format.uuid
     format_slug = format.slug
 
     # Update the group and description of the Matroska format.
-    unknown_group = models.FormatGroup.objects.get(description="Unknown")
+    unknown_group, _ = models.FormatGroup.objects.get_or_create(description="Unknown")
     new_format_description = "My matroska format"
 
     assert (
@@ -184,7 +216,7 @@ def test_format_edit_updates_format(dashboard_uuid: None, admin_client: Client) 
 
 
 @pytest.mark.django_db
-def test_idrule_create(dashboard_uuid: None, admin_client: Client) -> None:
+def test_idrule_create(dashboard_uuid: uuid.UUID, admin_client: Client) -> None:
     url = reverse("fpr:idrule_create")
 
     resp = admin_client.get(url)
@@ -226,7 +258,7 @@ def test_idrule_create(dashboard_uuid: None, admin_client: Client) -> None:
 
 
 @pytest.mark.django_db
-def test_fprule_create(dashboard_uuid: None, admin_client: Client) -> None:
+def test_fprule_create(dashboard_uuid: uuid.UUID, admin_client: Client) -> None:
     url = reverse("fpr:fprule_create")
 
     resp = admin_client.get(url)

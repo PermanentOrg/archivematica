@@ -23,5 +23,8 @@
 .tox/
 
 # frontend builds
-src/dashboard/src/static/
-src/dashboard/src/media/js/build
+src/archivematica/dashboard/static/
+src/archivematica/dashboard/media/js/build
+
+# setuptools build
+**/*.egg-info

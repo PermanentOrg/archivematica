@@ -3,37 +3,33 @@ import json
 import uuid
 from unittest import mock
 
-import archivematicaFunctions
 import pytest
 import requests
-from components import helpers
-from components.api import views
 from django.core.management import call_command
 from django.urls import reverse
 from django.utils.timezone import make_aware
 from lxml import etree
-from main.models import PACKAGE_STATUS_COMPLETED_SUCCESSFULLY
-from main.models import SIP
-from main.models import DashboardSetting
-from main.models import DublinCore
-from main.models import File
-from main.models import Job
-from main.models import LevelOfDescription
-from main.models import MetadataAppliesToType
-from main.models import RightsStatement
-from main.models import SIPArrange
-from main.models import Task
-from main.models import Transfer
-from processing import install_builtin_config
+
+from archivematica.archivematicaCommon import archivematicaFunctions
+from archivematica.archivematicaCommon.processing import install_builtin_config
+from archivematica.dashboard.components import helpers
+from archivematica.dashboard.components.api import views
+from archivematica.dashboard.main.models import PACKAGE_STATUS_COMPLETED_SUCCESSFULLY
+from archivematica.dashboard.main.models import SIP
+from archivematica.dashboard.main.models import DashboardSetting
+from archivematica.dashboard.main.models import DublinCore
+from archivematica.dashboard.main.models import File
+from archivematica.dashboard.main.models import Job
+from archivematica.dashboard.main.models import LevelOfDescription
+from archivematica.dashboard.main.models import MetadataAppliesToType
+from archivematica.dashboard.main.models import RightsStatement
+from archivematica.dashboard.main.models import SIPArrange
+from archivematica.dashboard.main.models import Task
+from archivematica.dashboard.main.models import Transfer
 
 
 def load_fixture(fixtures):
     call_command("loaddata", *fixtures, **{"verbosity": 0})
-
-
-@pytest.fixture
-def dashboard_uuid(db):
-    helpers.set_setting("dashboard_uuid", str(uuid.uuid4()))
 
 
 @pytest.fixture
@@ -850,9 +846,12 @@ def test_get_unit_status_multiple(
 
 
 @pytest.mark.django_db
-@mock.patch("components.api.views.authenticate_request", return_value=None)
 @mock.patch(
-    "components.filesystem_ajax.views._copy_from_transfer_sources",
+    "archivematica.dashboard.components.api.views.authenticate_request",
+    return_value=None,
+)
+@mock.patch(
+    "archivematica.dashboard.components.filesystem_ajax.views._copy_from_transfer_sources",
     return_value=(None, ""),
 )
 def test_copy_metadata_files_api(_copy_from_transfer_sources, authenticate_request):
@@ -885,11 +884,12 @@ def test_copy_metadata_files_api(_copy_from_transfer_sources, authenticate_reque
 
 
 @mock.patch(
-    "components.filesystem_ajax.views.start_transfer",
+    "archivematica.dashboard.components.filesystem_ajax.views.start_transfer",
     return_value={},
 )
-def test_start_transfer_api_decodes_paths(start_transfer_view, admin_client):
-    helpers.set_setting("dashboard_uuid", "test-uuid")
+def test_start_transfer_api_decodes_paths(
+    start_transfer_view, admin_client, dashboard_uuid
+):
     admin_client.post(
         reverse("api:start_transfer"),
         {
@@ -907,10 +907,10 @@ def test_start_transfer_api_decodes_paths(start_transfer_view, admin_client):
 
 
 @mock.patch(
-    "contrib.mcp.client.gearman.JOB_COMPLETE",
+    "archivematica.dashboard.contrib.mcp.client.gearman.JOB_COMPLETE",
 )
-@mock.patch("contrib.mcp.client.GearmanClient")
-def test_reingest_approve(gearman_client, job_complete, admin_client):
+@mock.patch("archivematica.dashboard.contrib.mcp.client.GearmanClient")
+def test_reingest_approve(gearman_client, job_complete, admin_client, dashboard_uuid):
     gearman_client.return_value = mock.Mock(
         **{
             "submit_job.return_value": mock.Mock(
@@ -919,7 +919,6 @@ def test_reingest_approve(gearman_client, job_complete, admin_client):
             )
         }
     )
-    helpers.set_setting("dashboard_uuid", "test-uuid")
 
     response = admin_client.post(
         reverse("api:reingest_approve"),
@@ -934,8 +933,7 @@ def test_reingest_approve(gearman_client, job_complete, admin_client):
     )
 
 
-def test_path_metadata_get(admin_client):
-    helpers.set_setting("dashboard_uuid", "test-uuid")
+def test_path_metadata_get(admin_client, dashboard_uuid):
     SIPArrange.objects.create(
         arrange_path=b"/arrange/testsip/", level_of_description="Folder"
     )
@@ -949,17 +947,16 @@ def test_path_metadata_get(admin_client):
     assert payload["level_of_description"] == "Folder"
 
 
-def test_path_metadata_raises_404_if_siparrange_does_not_exist(admin_client):
-    helpers.set_setting("dashboard_uuid", "test-uuid")
-
+def test_path_metadata_raises_404_if_siparrange_does_not_exist(
+    admin_client, dashboard_uuid
+):
     response = admin_client.get(
         reverse("api:path_metadata"), {"path": "/arrange/testsip"}
     )
     assert response.status_code == 404
 
 
-def test_path_metadata_post(admin_client):
-    helpers.set_setting("dashboard_uuid", "test-uuid")
+def test_path_metadata_post(admin_client, dashboard_uuid):
     SIPArrange.objects.create(
         arrange_path=b"/arrange/testsip/", level_of_description="Folder"
     )
@@ -989,8 +986,7 @@ def test_path_metadata_post(admin_client):
     )
 
 
-def test_path_metadata_post_resets_level_of_description(admin_client):
-    helpers.set_setting("dashboard_uuid", "test-uuid")
+def test_path_metadata_post_resets_level_of_description(admin_client, dashboard_uuid):
     SIPArrange.objects.create(
         arrange_path=b"/arrange/testsip/", level_of_description="Folder"
     )
@@ -1013,9 +1009,7 @@ def test_path_metadata_post_resets_level_of_description(admin_client):
 
 
 @pytest.mark.django_db
-def test_unapproved_transfers(admin_client):
-    helpers.set_setting("dashboard_uuid", "test-uuid")
-
+def test_unapproved_transfers(admin_client, dashboard_uuid):
     # Create a couple of jobs with one awaiting for decision, i.e. unapproved.
     approve_transfer_uuid = uuid.uuid4()
     Job.objects.create(
@@ -1070,12 +1064,12 @@ def test_unapproved_transfers(admin_client):
         "mcpclient_error",
     ],
 )
-@mock.patch("contrib.mcp.client.GearmanClient", side_effect=Exception())
+@mock.patch(
+    "archivematica.dashboard.contrib.mcp.client.GearmanClient", side_effect=Exception()
+)
 def test_approve_transfer_failures(
-    gearman_client, post_data, expected_error, admin_client
+    gearman_client, post_data, expected_error, admin_client, dashboard_uuid
 ):
-    helpers.set_setting("dashboard_uuid", "test-uuid")
-
     response = admin_client.post(reverse("api:approve_transfer"), post_data)
 
     assert response.status_code == 500
@@ -1083,11 +1077,9 @@ def test_approve_transfer_failures(
     assert payload == {"error": True, "message": expected_error}
 
 
-@mock.patch("contrib.mcp.client.gearman.JOB_COMPLETE")
-@mock.patch("contrib.mcp.client.GearmanClient")
-def test_approve_transfer(gearman_client, job_complete, admin_client):
-    helpers.set_setting("dashboard_uuid", "test-uuid")
-
+@mock.patch("archivematica.dashboard.contrib.mcp.client.gearman.JOB_COMPLETE")
+@mock.patch("archivematica.dashboard.contrib.mcp.client.GearmanClient")
+def test_approve_transfer(gearman_client, job_complete, admin_client, dashboard_uuid):
     # Simulate a dashboard <-> Gearman <-> MCPServer interaction.
     # The MCPServer approveTransferByPath RPC method returns a UUID.
     transfer_uuid = uuid.uuid4()
@@ -1111,9 +1103,7 @@ def test_approve_transfer(gearman_client, job_complete, admin_client):
 
 
 @pytest.mark.django_db
-def test_waiting_for_user_input(admin_client):
-    helpers.set_setting("dashboard_uuid", "test-uuid")
-
+def test_waiting_for_user_input(admin_client, dashboard_uuid):
     # Create a couple of jobs with one awaiting for decision.
     approve_transfer_uuid = uuid.uuid4()
     Job.objects.create(
@@ -1151,9 +1141,7 @@ def test_waiting_for_user_input(admin_client):
     }
 
 
-def test_reingest_fails_with_missing_parameters(admin_client):
-    helpers.set_setting("dashboard_uuid", "test-uuid")
-
+def test_reingest_fails_with_missing_parameters(admin_client, dashboard_uuid):
     response = admin_client.post(
         reverse("api:transfer_reingest", kwargs={"target": "transfer"}), {}
     )
@@ -1185,10 +1173,8 @@ def sip_path(tmp_path):
 
 @pytest.mark.django_db
 def test_reingest_deletes_existing_models_related_to_sip(
-    sip_path, settings, admin_client
+    sip_path, settings, admin_client, dashboard_uuid
 ):
-    helpers.set_setting("dashboard_uuid", "test-uuid")
-
     # Set the SHARED_DIRECTORY setting based on the sip_path fixture.
     shared_directory = sip_path.parent.parent
     transfer_uuid = sip_path.name[-36:]
@@ -1230,9 +1216,7 @@ def test_reingest_deletes_existing_models_related_to_sip(
 
 
 @pytest.mark.django_db
-def test_reingest_full(sip_path, settings, admin_client):
-    helpers.set_setting("dashboard_uuid", "test-uuid")
-
+def test_reingest_full(sip_path, settings, admin_client, dashboard_uuid):
     # Fake UUID generation from the endpoint for a new Transfer.
     transfer_uuid = uuid.uuid4()
 
@@ -1280,10 +1264,8 @@ def test_reingest_full(sip_path, settings, admin_client):
 
 @pytest.mark.django_db
 def test_reingest_full_fails_if_target_directory_already_exists(
-    sip_path, settings, admin_client
+    sip_path, settings, admin_client, dashboard_uuid
 ):
-    helpers.set_setting("dashboard_uuid", "test-uuid")
-
     # Fake UUID generation from the endpoint for a new Transfer.
     transfer_uuid = uuid.uuid4()
 
@@ -1312,9 +1294,7 @@ def test_reingest_full_fails_if_target_directory_already_exists(
 
 
 @pytest.mark.django_db
-def test_reingest_partial(sip_path, settings, admin_client):
-    helpers.set_setting("dashboard_uuid", "test-uuid")
-
+def test_reingest_partial(sip_path, settings, admin_client, dashboard_uuid):
     # Set the SHARED_DIRECTORY setting based on the sip_path fixture.
     shared_directory = sip_path.parent.parent
     settings.SHARED_DIRECTORY = shared_directory.as_posix()
@@ -1343,19 +1323,15 @@ def test_reingest_partial(sip_path, settings, admin_client):
 
 @pytest.mark.django_db
 @mock.patch("requests.get")
-def test_fetch_levels_of_description_from_atom(get, admin_client):
-    helpers.set_setting("dashboard_uuid", "test-uuid")
-
+def test_fetch_levels_of_description_from_atom(get, admin_client, dashboard_uuid):
     # Set up the AtoM settings used on the Administration tab.
-    DashboardSetting.objects.create(
-        name="upload-qubit_v0.0",
-        value=str(
-            {
-                "url": "http://example.com",
-                "email": "demo@example.com",
-                "password": "password",
-            }
-        ),
+    DashboardSetting.objects.set_dict(
+        "upload-qubit_v0.0",
+        {
+            "url": "http://example.com",
+            "email": "demo@example.com",
+            "password": "password",
+        },
     )
 
     # Simulate interaction with AtoM.
@@ -1393,19 +1369,17 @@ def test_fetch_levels_of_description_from_atom(get, admin_client):
 @mock.patch(
     "requests.get", side_effect=[mock.Mock(status_code=503, spec=requests.Response)]
 )
-def test_fetch_levels_of_description_from_atom_communication_failure(get, admin_client):
-    helpers.set_setting("dashboard_uuid", "test-uuid")
-
+def test_fetch_levels_of_description_from_atom_communication_failure(
+    get, admin_client, dashboard_uuid
+):
     # Set up the AtoM settings used on the Administration tab.
-    DashboardSetting.objects.create(
-        name="upload-qubit_v0.0",
-        value=str(
-            {
-                "url": "http://example.com",
-                "email": "demo@example.com",
-                "password": "password",
-            }
-        ),
+    DashboardSetting.objects.set_dict(
+        "upload-qubit_v0.0",
+        {
+            "url": "http://example.com",
+            "email": "demo@example.com",
+            "password": "password",
+        },
     )
 
     response = admin_client.get(reverse("api:fetch_atom_lods"))

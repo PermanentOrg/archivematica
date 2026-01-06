@@ -1,10 +1,11 @@
 import pathlib
 from unittest import mock
 
-import extract_contents
 import pytest
-from client.job import Job
-from main import models
+
+from archivematica.dashboard.main import models
+from archivematica.MCPClient.client.job import Job
+from archivematica.MCPClient.clientScripts import extract_contents
 
 
 @pytest.mark.django_db
@@ -169,7 +170,7 @@ def test_job_fails_if_file_has_been_extracted_already(
     ]
     assert len(job.pyprint.mock_calls) == len(expected_pyprint_calls)
     # This uses any_order because we do not control the order in which the
-    # jo iterates the files in the transfer.
+    # job iterates the files in the transfer.
     job.pyprint.assert_has_calls(expected_pyprint_calls, any_order=True)
 
 
@@ -188,7 +189,10 @@ def transfer_file_path(transfer_directory_path, transfer_file):
 
 
 @pytest.mark.django_db
-@mock.patch("extract_contents.executeOrRun", return_value=(-1, "", "error!"))
+@mock.patch(
+    "archivematica.MCPClient.clientScripts.extract_contents.executeOrRun",
+    return_value=(-1, "", "error!"),
+)
 def test_job_fails_if_extraction_command_fails(
     execute_or_run,
     transfer,
@@ -237,7 +241,10 @@ def test_job_fails_if_extraction_command_fails(
 
 
 @pytest.mark.django_db
-@mock.patch("extract_contents.executeOrRun", return_value=(0, "success!", ""))
+@mock.patch(
+    "archivematica.MCPClient.clientScripts.extract_contents.executeOrRun",
+    return_value=(0, "success!", ""),
+)
 def test_job_deletes_compressed_file(
     execute_or_run,
     transfer,
@@ -301,7 +308,7 @@ def test_job_deletes_compressed_file(
 
 
 @pytest.mark.django_db
-@mock.patch("extract_contents.executeOrRun")
+@mock.patch("archivematica.MCPClient.clientScripts.extract_contents.executeOrRun")
 def test_job_assign_uuids_to_extracted_files_and_directories(
     execute_or_run,
     transfer,
@@ -393,7 +400,7 @@ def test_job_assign_uuids_to_extracted_files_and_directories(
         f"Command to execute is: {fpcommand.command}",
         f"Assigning UUID {extracted_directory.uuid} to directory path {extracted_directory.currentlocation.decode()}",
     ]
-    assert job.pyprint.mock_calls == [
+    expected_pyprint_calls = [
         mock.call(f"Deleting?: {delete}", file=mock.ANY),
         mock.call(
             "Extracted contents from",
@@ -415,10 +422,17 @@ def test_job_assign_uuids_to_extracted_files_and_directories(
             file=mock.ANY,
         ),
     ]
+    assert len(job.pyprint.mock_calls) == len(expected_pyprint_calls)
+    # This uses any_order because we do not control the order in which the
+    # job iterates the files in the transfer.
+    job.pyprint.assert_has_calls(expected_pyprint_calls, any_order=True)
 
 
 @pytest.mark.django_db
-@mock.patch("extract_contents.executeOrRun", return_value=(0, "success", ""))
+@mock.patch(
+    "archivematica.MCPClient.clientScripts.extract_contents.executeOrRun",
+    return_value=(0, "success", ""),
+)
 def test_job_uses_replacement_keys_in_bash_command(
     execute_or_run,
     transfer,

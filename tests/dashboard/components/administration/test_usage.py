@@ -2,7 +2,7 @@ import pathlib
 import subprocess
 from unittest import mock
 
-from components import helpers
+import pytest
 from django.conf import settings
 from django.test import TestCase
 
@@ -14,9 +14,12 @@ TEST_USER_FIXTURE = (
 class TestUsage(TestCase):
     fixtures = [TEST_USER_FIXTURE]
 
+    @pytest.fixture(autouse=True)
+    def dashboard_uuid(self, dashboard_uuid):
+        return dashboard_uuid
+
     def setUp(self):
         self.client.login(username="test", password="test")
-        helpers.set_setting("dashboard_uuid", "test-uuid")
 
     def test_no_calculation(self):
         for calculate in [None, "False", "false", "no", "0", "random"]:
@@ -32,15 +35,16 @@ class TestUsage(TestCase):
             self.assertIn("Calculate disk usage", content)
 
     @mock.patch(
-        "components.administration.views._usage_get_directory_used_bytes",
+        "archivematica.dashboard.components.administration.views._usage_get_directory_used_bytes",
         return_value=5368709120,
     )
     @mock.patch(
-        "components.administration.views._usage_check_directory_volume_size",
+        "archivematica.dashboard.components.administration.views._usage_check_directory_volume_size",
         return_value=10737418240,
     )
     @mock.patch(
-        "components.administration.views._get_mount_point_path", return_value="/"
+        "archivematica.dashboard.components.administration.views._get_mount_point_path",
+        return_value="/",
     )
     def test_calculation(self, mock_mount_path, mock_dir_size, mock_dir_used):
         for calculate in ["true", "True", "ON", "yes", "1"]:
@@ -65,11 +69,11 @@ class TestUsage(TestCase):
         ],
     )
     @mock.patch(
-        "components.administration.views._usage_check_directory_volume_size",
+        "archivematica.dashboard.components.administration.views._usage_check_directory_volume_size",
         return_value=10737418240,
     )
     @mock.patch(
-        "components.administration.views._get_shared_dirs",
+        "archivematica.dashboard.components.administration.views._get_shared_dirs",
         return_value={},
     )
     def test_calculation_with_disk_usage_errors(

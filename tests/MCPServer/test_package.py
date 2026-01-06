@@ -5,17 +5,20 @@ from unittest import mock
 
 import pytest
 from django.core.exceptions import ValidationError
-from main import models
-from server.packages import DIP
-from server.packages import SIP
-from server.packages import Package
-from server.packages import Transfer
-from server.packages import _determine_transfer_paths
-from server.packages import _move_to_internal_shared_dir
-from server.packages import _pad_destination_filepath_if_it_already_exists
-from server.packages import create_package
-from server.queues import PackageQueue
-from server.workflow import Workflow
+
+from archivematica.dashboard.main import models
+from archivematica.MCPServer.server.packages import DIP
+from archivematica.MCPServer.server.packages import SIP
+from archivematica.MCPServer.server.packages import Package
+from archivematica.MCPServer.server.packages import Transfer
+from archivematica.MCPServer.server.packages import _determine_transfer_paths
+from archivematica.MCPServer.server.packages import _move_to_internal_shared_dir
+from archivematica.MCPServer.server.packages import (
+    _pad_destination_filepath_if_it_already_exists,
+)
+from archivematica.MCPServer.server.packages import create_package
+from archivematica.MCPServer.server.queues import PackageQueue
+from archivematica.MCPServer.server.workflow import Workflow
 
 
 @pytest.mark.parametrize(
@@ -203,9 +206,9 @@ def test_reload_file_list(tmp_path):
             "transfer_id": transfer_uuid,
         }
         models.File.objects.create(**kwargs)
-    assert (
-        _file_count == 2
-    ), "Database and file objects were not returned by the generator"
+    assert _file_count == 2, (
+        "Database and file objects were not returned by the generator"
+    )
     assert models.File.objects.filter(transfer_id=str(transfer_uuid)).count() == 2
 
     # Simulate an additional file object being added later on in the transfer
@@ -229,9 +232,9 @@ def test_reload_file_list(tmp_path):
             "transfer_id": transfer_uuid,
         }
         models.File.objects.create(**kwargs)
-    assert (
-        _file_count == 3
-    ), "Database and file objects were not returned by the generator"
+    assert _file_count == 3, (
+        "Database and file objects were not returned by the generator"
+    )
     assert models.File.objects.filter(transfer_id=str(transfer_uuid)).count() == 3
 
     # Now the database is updated, we will still have the same file count, but

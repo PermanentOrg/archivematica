@@ -1,21 +1,20 @@
-import os
+import importlib.resources
 import pathlib
 from io import StringIO
 from unittest import mock
 
 import pytest
 from django.utils.translation import gettext_lazy
-from server import translation
-from server import workflow
 
-ASSETS_DIR = (
-    pathlib.Path(__file__).parent.parent.parent / "src" / "MCPServer" / "lib" / "assets"
-)
+from archivematica.MCPServer.server import translation
+from archivematica.MCPServer.server import workflow
+
+ASSETS_DIR = importlib.resources.files("archivematica.MCPServer") / "assets"
 FIXTURES_DIR = pathlib.Path(__file__).parent / "fixtures"
 
 
 @mock.patch(
-    "server.jobs.Job.STATUSES",
+    "archivematica.MCPServer.server.jobs.Job.STATUSES",
     (
         (1, gettext_lazy("Uno")),
         (2, gettext_lazy("Dos")),
@@ -42,8 +41,8 @@ def test_load_invalid_json():
 @pytest.mark.parametrize(
     "path",
     (
-        os.path.join(ASSETS_DIR, "workflow.json"),
-        os.path.join(FIXTURES_DIR, "workflow-sample.json"),
+        ASSETS_DIR / "workflow.json",
+        FIXTURES_DIR / "workflow-sample.json",
     ),
 )
 def test_load_valid_document(path):
@@ -100,7 +99,7 @@ def test_load_valid_document(path):
 
 
 def test_link_browse_methods():
-    with open(os.path.join(ASSETS_DIR, "workflow.json")) as fp:
+    with open(ASSETS_DIR / "workflow.json") as fp:
         wf = workflow.load(fp)
     ln = wf.get_link("1ba589db-88d1-48cf-bb1a-a5f9d2b17378")
     assert ln.get_next_link(code="0").id == "087d27be-c719-47d8-9bbb-9a7d8b609c44"
@@ -114,7 +113,9 @@ def test_get_schema():
     assert schema["$id"] == "https://www.archivematica.org/labs/workflow/schema/v1.json"
 
 
-@mock.patch("server.workflow._LATEST_SCHEMA", "non-existen-schema")
+@mock.patch(
+    "archivematica.MCPServer.server.workflow._LATEST_SCHEMA", "non-existen-schema"
+)
 def test_get_schema_not_found():
     with pytest.raises(IOError):
         workflow._get_schema()

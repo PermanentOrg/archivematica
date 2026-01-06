@@ -1,3 +1,88 @@
+[build-system]
+requires = ["setuptools>=74", "wheel>=0.44"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name="archivematica"
+description="Web- and standards-based, open-source application which allows your institution to preserve long-term access to trustworthy, authentic and reliable digital content."
+requires-python = ">=3.9"
+authors = [
+  {name = "Artefactual Systems Inc.", email = "info@artefactual.com"},
+]
+maintainers = [
+  {name = "Artefactual Systems Inc.", email = "info@artefactual.com"},
+]
+readme = {file = "README.md", content-type = "text/markdown"}
+license = {file = "LICENSE"}
+dynamic = [
+  "version",
+]
+dependencies = [
+  "django-shibboleth-remoteuser @ git+https://github.com/artefactual-labs/django-shibboleth-remoteuser.git@f08a7864d6130416c352981ccf318fff0fd5be58",
+  "Django>=4.2,<5",
+  "agentarchives",
+  "amclient",
+  "ammcpc",
+  "bagit",
+  "brotli",
+  "clamav-client",
+  "django-autoslug",
+  "django-csp",
+  "django-forms-bootstrap",
+  "django-prometheus",
+  "django-tastypie",
+  "elasticsearch>=8.0.0,<9.0.0",
+  "gearman3 @ git+https://github.com/artefactual-labs/python-gearman.git@b68efc868c7a494dd6a2d2e820fb098a6da9f797",
+  "gevent",
+  "gunicorn",
+  "inotify-simple",
+  "jsonschema",
+  "lazy-paged-sequence",
+  "lxml",
+  "metsrw",
+  "orjson",
+  "opf-fido @ git+https://github.com/artefactual-labs/fido.git@abc31ecdc93bd9dfefbe6da535341dfc9f03d311",
+  "prometheus_client",
+  "python-dateutil",
+  "requests",
+  "unidecode",
+  "whitenoise",
+  # Required by LDAP authentication
+  "django-auth-ldap",
+  "python-ldap",
+  # Required by CAS authentication
+  "django-cas-ng",
+  # Required for OpenID Connect authentication
+  "mozilla-django-oidc",
+]
+
+[project.optional-dependencies]
+dev = [
+  "coverage[toml]",
+  "mockldap @ git+https://github.com/artefactual-labs/mockldap@v0.3.1",
+  "pip-tools",
+  "playwright",
+  "pytest",
+  "pytest-cov",
+  "pytest-django",
+  "pytest-playwright",
+  "pytest-randomly",
+  "tox",
+]
+
+[project.urls]
+homepage = "https://www.archivematica.org/"
+documentation = "https://www.archivematica.org/en/docs/archivematica-latest/"
+repository = "https://github.com/artefacutal/archivematica"
+issues = "https://github.com/archivematica/Issues/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["archivematica*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "archivematica.archivematicaCommon.version.get_full_version"}
+
 [tool.pytest.ini_options]
 addopts = "--reuse-db -p no:cacheprovider"
 DJANGO_SETTINGS_MODULE="settings.test"
@@ -5,23 +90,24 @@ norecursedirs = ".svn _build tmp* node_modules bower_components share .tox"
 
 [tool.coverage.run]
 omit = [
-    "**/src/archivematicaCommon/lib/externals/*",
+    "**/src/archivematica/archivematicaCommon/externals/*",
     "**/migrations/*",
-    "**/south_migrations/*",
-    "**/management/commands/*",
     "**/settings/*",
     "**/tests/*",
     "**/wsgi.py",
     "**/manage.py",
 ]
 include = [
-    "**/src/archivematicaCommon/lib/*",
-    "**/src/dashboard/src/*",
-    "**/src/MCPClient/lib/*",
-    "**/src/MCPClient/lib/clientScripts/*",
-    "**/src/MCPServer/lib/*",
+    "**/src/archivematica/archivematicaCommon/*",
+    "**/src/archivematica/dashboard/*",
+    "**/src/archivematica/MCPClient/*",
+    "**/src/archivematica/MCPClient/clientScripts/*",
+    "**/src/archivematica/MCPServer/*",
 ]
 branch = true
+
+[tool.ruff]
+target-version = "py39"
 
 [tool.ruff.lint]
 # Rule reference: https://docs.astral.sh/ruff/rules/
@@ -43,8 +129,9 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"src/*/settings/*" = ["F403"]
-"src/dashboard/src/settings/*" = ["F405"]
+"src/archivematica/**/settings/*" = ["F403"]
+"src/archivematica/dashboard/settings/*" = ["F405"]
+"src/archivematica/settings/testmysql.py" = ["I001"]
 
 [tool.ruff.lint.isort]
 force-single-line = true
@@ -56,29 +143,36 @@ warn_unused_configs = true
 
 [[tool.mypy.overrides]]
 module = [
-    "src.archivematicaCommon.lib.executeOrRunSubProcess",
-    "src.MCPClient.lib.client.*",
-    "src.MCPClient.lib.clientScripts.characterize_file",
-    "src.MCPClient.lib.clientScripts.has_packages",
-    "src.MCPClient.lib.clientScripts.identify_file_format",
-    "src.MCPClient.lib.clientScripts.normalize",
-    "src.MCPClient.lib.clientScripts.policy_check",
-    "src.MCPClient.lib.clientScripts.transcribe_file",
-    "src.MCPClient.lib.clientScripts.validate_file",
+    "src.archivematica.archivematicaCommon.executeOrRunSubProcess",
+    "src.archivematica.MCPClient.client.*",
+    "src.archivematica.MCPClient.clientScripts.characterize_file",
+    "src.archivematica.MCPClient.clientScripts.has_packages",
+    "src.archivematica.MCPClient.clientScripts.identify_file_format",
+    "src.archivematica.MCPClient.clientScripts.normalize",
+    "src.archivematica.MCPClient.clientScripts.policy_check",
+    "src.archivematica.MCPClient.clientScripts.transcribe_file",
+    "src.archivematica.MCPClient.clientScripts.validate_file",
+    "src.archivematica.search.service",
     "tests.archivematicaCommon.test_execute_functions",
+    "tests.conftest",
     "tests.dashboard.components.accounts.test_views",
     "tests.dashboard.components.administration.test_administration",
+    "tests.dashboard.fpr.test_command_get_fpr_changes",
+    "tests.dashboard.fpr.test_command_import_pronom_ids",
     "tests.dashboard.fpr.test_views",
     "tests.dashboard.test_oidc",
     "tests.integration.test_oidc_auth",
     "tests.MCPClient.conftest",
     "tests.MCPClient.test_characterize_file",
+    "tests.MCPClient.test_create_mets_v2",
+    "tests.MCPClient.test_fpr_commands",
     "tests.MCPClient.test_has_packages",
     "tests.MCPClient.test_identify_file_format",
     "tests.MCPClient.test_normalize",
     "tests.MCPClient.test_policy_check",
     "tests.MCPClient.test_transcribe_file",
     "tests.MCPClient.test_validate_file",
+    "tests.search.test_service",
 ]
 check_untyped_defs = true
 disallow_any_generics = true
@@ -95,7 +189,6 @@ warn_unused_ignores = true
 [tool.tox]
 legacy_tox_ini = """
     [tox]
-    skipsdist = True
     envlist =
         archivematica-common
         dashboard
@@ -105,9 +198,10 @@ legacy_tox_ini = """
         migrations-dashboard
         migrations-storage-service
         linting
+        archivematica
 
     [testenv]
-    skip_install = True
+    package = editable
     deps = -r{toxinidir}/requirements-dev.txt
     commands = py.test {posargs}
     allowlist_externals =
@@ -118,35 +212,10 @@ legacy_tox_ini = """
         LOGNAME = user
         DJANGO_SETTINGS_MODULE = {env:DJANGO_SETTINGS_MODULE:settings.test}
         PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:}
-        SRC_DIR = {toxinidir}/src
         HACK_DIR = {toxinidir}/hack
-        # Archivematica Common
-        ARCHIVEMATICA_COMMON_ROOT = {env:SRC_DIR}/archivematicaCommon
-        ARCHIVEMATICA_COMMON_DIR = {env:ARCHIVEMATICA_COMMON_ROOT}/lib
-        # Dashboard
-        DASHBOARD_ROOT = {env:SRC_DIR}/dashboard
-        DASHBOARD_DIR = {env:DASHBOARD_ROOT}/src
-        DASHBOARD_PYTHONPATH = {env:DASHBOARD_DIR}:{env:ARCHIVEMATICA_COMMON_DIR}
-        # MCP Server
-        MCPSERVER_ROOT = {env:SRC_DIR}/MCPServer
-        MCPSERVER_DIR = {env:MCPSERVER_ROOT}/lib
-        MCPSERVER_PYTHONPATH = {env:MCPSERVER_DIR}:{env:ARCHIVEMATICA_COMMON_DIR}:{env:DASHBOARD_DIR}
-        # MCP Client
-        MCPCLIENT_ROOT = {env:SRC_DIR}/MCPClient
-        MCPCLIENT_DIR = {env:MCPCLIENT_ROOT}/lib
-        MCPCLIENT_PYTHONPATH = {env:MCPCLIENT_DIR}:{env:MCPCLIENT_DIR}/clientScripts:{env:ARCHIVEMATICA_COMMON_DIR}:{env:DASHBOARD_DIR}
         # Storage Service
         STORAGE_SERVICE_ROOT = {env:HACK_DIR}/submodules/archivematica-storage-service
-        STORAGE_SERVICE_DIR = {env:STORAGE_SERVICE_ROOT}/storage_service
-        STORAGE_SERVICE_PYTHONPATH = {env:STORAGE_SERVICE_DIR}:{env:STORAGE_SERVICE_DIR}/storage_service
         # TOXENV-specific
-        archivematica-common: PYTHONPATH = {env:DASHBOARD_PYTHONPATH}
-        dashboard: PYTHONPATH = {env:DASHBOARD_PYTHONPATH}
-        mcp-server: PYTHONPATH = {env:MCPSERVER_PYTHONPATH}
-        mcp-client: PYTHONPATH = {env:MCPCLIENT_PYTHONPATH}
-        storage-service: PYTHONPATH = {env:STORAGE_SERVICE_PYTHONPATH}
-        migrations-dashboard: PYTHONPATH = {env:DASHBOARD_PYTHONPATH}
-        migrations-storage-service: PYTHONPATH = {env:STORAGE_SERVICE_PYTHONPATH}
         # Setting HOME prevents Python's pwd module to ask for a real uid inside
         # the container, and using {temp_dir} allows caching the pre-commit
         # dependencies in the tox host
@@ -158,19 +227,28 @@ legacy_tox_ini = """
         mcp-client: {toxinidir}/tests/MCPClient
         storage-service: {env:STORAGE_SERVICE_ROOT}
 
+    [testenv:archivematica]
+    change_dir = {toxinidir}/tests
+
     [testenv:storage-service]
     deps =
         -r{env:STORAGE_SERVICE_ROOT}/requirements-dev.txt
+    commands =
+        pip install -e {env:STORAGE_SERVICE_ROOT}
+        {[testenv]commands}
 
     [testenv:migrations-dashboard]
     commands = django-admin makemigrations --check --dry-run
 
     [testenv:migrations-storage-service]
     deps = {[testenv:storage-service]deps}
-    commands = {[testenv:migrations-dashboard]commands}
+    commands =
+        pip install -e {env:STORAGE_SERVICE_ROOT}
+        {[testenv:migrations-dashboard]commands}
 
     [testenv:linting]
     basepython = python3
+    package = skip
     deps = pre-commit
     commands = pre-commit run --all-files --show-diff-on-failure
 """

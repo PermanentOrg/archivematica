@@ -1,9 +1,10 @@
 import os
 import shutil
 
-import parse_external_mets
 import pytest
-from main import models
+
+from archivematica.dashboard.main import models
+from archivematica.MCPClient.clientScripts import parse_external_mets
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -60,6 +61,9 @@ def test_mets_cannot_parse(mcp_job, transfer_directory_path):
 
 
 def test_mets_is_parsed(db, mcp_job, transfer_directory_path):
+    models.MetadataAppliesToType.objects.get_or_create(
+        pk="3e48343d-e2d2-4956-aaa3-b54d26eb9761", description="SIP"
+    )
     exit_code = parse_external_mets.main(
         mcp_job, "a2f1f249-7bd4-4f52-8f1a-84319cb1b6d3", str(transfer_directory_path)
     )

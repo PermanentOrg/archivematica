@@ -1,6 +1,7 @@
 import pytest
 import pytest_django
-from components.accounts.backends import CustomOIDCBackend
+
+from archivematica.dashboard.components.accounts.backends import CustomOIDCBackend
 
 
 @pytest.fixture
@@ -14,7 +15,14 @@ def settings(
     settings.OIDC_ACCESS_ATTRIBUTE_MAP = {
         "given_name": "first_name",
         "family_name": "last_name",
+        "realm_access": "realm_access",
     }
+    settings.DEFAULT_OIDC_CLAIMS = {
+        "given_name": "first_name",
+        "family_name": "last_name",
+    }
+    settings.OIDC_OP_SET_ROLES_FROM_CLAIMS = False
+    settings.OIDC_OP_ROLE_CLAIM_PATH = "realm_access.roles"
     settings.OIDC_ID_ATTRIBUTE_MAP = {"email": "email"}
     settings.OIDC_USERNAME_ALGO = lambda email: email
 
@@ -22,11 +30,22 @@ def settings(
 
 
 @pytest.mark.django_db
-def test_create_user(settings: pytest_django.fixtures.SettingsWrapper) -> None:
+def test_create_user(
+    settings: pytest_django.fixtures.SettingsWrapper,
+) -> None:
+    """
+    Test that the user is created with the correct attributes and that the API key is generated.
+    User will not be superuser because the setting OIDC_OP_SET_ROLES_FROM_CLAIMS is False.
+    """
     backend = CustomOIDCBackend()
 
     user = backend.create_user(
-        {"email": "test@example.com", "first_name": "Test", "last_name": "User"}
+        {
+            "email": "test@example.com",
+            "first_name": "Test",
+            "last_name": "User",
+            "realm_access": {"roles": ["admin"]},
+        }
     )
 
     user.refresh_from_db()
@@ -34,6 +53,229 @@ def test_create_user(settings: pytest_django.fixtures.SettingsWrapper) -> None:
     assert user.last_name == "User"
     assert user.email == "test@example.com"
     assert user.username == "test@example.com"
+    assert not user.is_superuser
+    assert user.api_key
+
+
+@pytest.mark.django_db
+def test_create_user_set_admin_from_claim(
+    settings: pytest_django.fixtures.SettingsWrapper,
+) -> None:
+    """
+    Test that the user is created with the correct attributes and that the API key is generated.
+    User will be superuser because the setting OIDC_OP_SET_ROLES_FROM_CLAIMS is True
+    and the role claim is set to "admin".
+    """
+    settings.OIDC_OP_SET_ROLES_FROM_CLAIMS = True
+    settings.OIDC_OP_ROLE_CLAIM_PATH = "realm_access.roles"
+    settings.OIDC_ACCESS_ATTRIBUTE_MAP = {
+        "given_name": "first_name",
+        "family_name": "last_name",
+        "realm_access": "realm_access",
+    }
+    backend = CustomOIDCBackend()
+
+    user = backend.create_user(
+        {
+            "email": "test@example.com",
+            "first_name": "Test",
+            "last_name": "User",
+            "realm_access": {"roles": ["admin"]},
+        }
+    )
+
+    user.refresh_from_db()
+    assert user.first_name == "Test"
+    assert user.last_name == "User"
+    assert user.email == "test@example.com"
+    assert user.username == "test@example.com"
+    assert user.is_superuser
+    assert user.api_key
+
+
+@pytest.mark.django_db
+def test_create_user_role_from_claims(
+    settings: pytest_django.fixtures.SettingsWrapper,
+) -> None:
+    """
+    The role given to a new user is based on token contents.
+    In this test, we're ensuring that the highest-permission valid role
+    found in the OIDC token claims is assigned.
+    """
+    settings.OIDC_OP_SET_ROLES_FROM_CLAIMS = True
+    settings.OIDC_OP_ROLE_CLAIM_PATH = "realm_access.roles"
+    settings.OIDC_ACCESS_ATTRIBUTE_MAP = {
+        "given_name": "first_name",
+        "family_name": "last_name",
+        "realm_access": "realm_access",
+    }
+    backend = CustomOIDCBackend()
+
+    user = backend.create_user(
+        {
+            "email": "test@example.com",
+            "first_name": "Test",
+            "last_name": "User",
+            "realm_access": {"roles": ["admin", "default"]},
+        }
+    )
+
+    user.refresh_from_db()
+    assert user.first_name == "Test"
+    assert user.last_name == "User"
+    assert user.email == "test@example.com"
+    assert user.username == "test@example.com"
+    assert user.is_superuser
+    assert user.api_key
+
+
+@pytest.mark.django_db
+def test_create_user_role_from_claims_reverese_token_role_order(
+    settings: pytest_django.fixtures.SettingsWrapper,
+) -> None:
+    """
+    The role given to a new user is based on token contents.
+    In this test, we're ensuring that the highest-permission valid role
+    found in the OIDC token claims is assigned.
+    """
+    settings.OIDC_OP_SET_ROLES_FROM_CLAIMS = True
+    settings.OIDC_OP_ROLE_CLAIM_PATH = "realm_access.roles"
+    settings.OIDC_ACCESS_ATTRIBUTE_MAP = {
+        "given_name": "first_name",
+        "family_name": "last_name",
+        "realm_access": "realm_access",
+    }
+    backend = CustomOIDCBackend()
+
+    user = backend.create_user(
+        {
+            "email": "test@example.com",
+            "first_name": "Test",
+            "last_name": "User",
+            "realm_access": {"roles": ["reader", "admin"]},
+        }
+    )
+
+    user.refresh_from_db()
+    assert user.first_name == "Test"
+    assert user.last_name == "User"
+    assert user.email == "test@example.com"
+    assert user.username == "test@example.com"
+    assert user.is_superuser
+    assert user.api_key
+
+
+@pytest.mark.django_db
+def test_create_user_set_admin_from_alternate_token_value(
+    settings: pytest_django.fixtures.SettingsWrapper,
+) -> None:
+    settings.OIDC_OP_SET_ROLES_FROM_CLAIMS = True
+    settings.OIDC_OP_ROLE_CLAIM_PATH = "realm_access.roles"
+    settings.OIDC_ACCESS_ATTRIBUTE_MAP = {
+        "given_name": "first_name",
+        "family_name": "last_name",
+        "realm_access": "realm_access",
+    }
+    settings.OIDC_ROLE_CLAIM_ADMIN = "test"
+    backend = CustomOIDCBackend()
+
+    user = backend.create_user(
+        {
+            "email": "test@example.com",
+            "first_name": "Test",
+            "last_name": "User",
+            "realm_access": {"roles": ["test"]},
+        }
+    )
+
+    user.refresh_from_db()
+    assert user.first_name == "Test"
+    assert user.last_name == "User"
+    assert user.email == "test@example.com"
+    assert user.username == "test@example.com"
+    assert user.is_superuser
+    assert user.api_key
+
+
+@pytest.mark.django_db
+def test_create_user_failure_no_claims_in_token(
+    settings: pytest_django.fixtures.SettingsWrapper,
+) -> None:
+    settings.OIDC_OP_SET_ROLES_FROM_CLAIMS = True
+    settings.OIDC_OP_ROLE_CLAIM_PATH = "realm_access.roles"
+    settings.OIDC_ACCESS_ATTRIBUTE_MAP = {
+        "given_name": "first_name",
+        "family_name": "last_name",
+        "realm_access": "realm_access",
+    }
+    backend = CustomOIDCBackend()
+
+    user = backend.create_user(
+        {"email": "test@example.com", "first_name": "Test", "last_name": "User"}
+    )
+
+    assert user is None
+
+
+@pytest.mark.django_db
+def test_create_user_set_admin_from_alt_claim_path(
+    settings: pytest_django.fixtures.SettingsWrapper,
+) -> None:
+    settings.OIDC_OP_SET_ROLES_FROM_CLAIMS = True
+    settings.OIDC_OP_ROLE_CLAIM_PATH = "custom_claims.user_roles"
+    settings.OIDC_ACCESS_ATTRIBUTE_MAP = {
+        "given_name": "first_name",
+        "family_name": "last_name",
+        "realm_access": "realm_access",
+    }
+    backend = CustomOIDCBackend()
+
+    user = backend.create_user(
+        {
+            "email": "test@example.com",
+            "first_name": "Test",
+            "last_name": "User",
+            "custom_claims": {"user_roles": ["admin"]},
+        }
+    )
+
+    user.refresh_from_db()
+    assert user.first_name == "Test"
+    assert user.last_name == "User"
+    assert user.email == "test@example.com"
+    assert user.username == "test@example.com"
+    assert user.is_superuser
+    assert user.api_key
+
+
+@pytest.mark.django_db
+def test_create_user_admin_from_claims_simple_role(
+    settings: pytest_django.fixtures.SettingsWrapper,
+) -> None:
+    settings.OIDC_OP_SET_ROLES_FROM_CLAIMS = True
+    settings.OIDC_OP_ROLE_CLAIM_PATH = "role"
+    settings.OIDC_ACCESS_ATTRIBUTE_MAP = {
+        "given_name": "first_name",
+        "family_name": "last_name",
+        "realm_access": "realm_access",
+    }
+    backend = CustomOIDCBackend()
+
+    user = backend.create_user(
+        {
+            "email": "test@example.com",
+            "first_name": "Test",
+            "last_name": "User",
+            "role": "admin",
+        }
+    )
+
+    user.refresh_from_db()
+    assert user.first_name == "Test"
+    assert user.last_name == "User"
+    assert user.email == "test@example.com"
+    assert user.username == "test@example.com"
+    assert user.is_superuser
     assert user.api_key
 
 
