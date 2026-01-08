@@ -1,14 +1,9 @@
-import os
-import pathlib
+import importlib.resources
 
 import pytest
-from server import workflow
-from server.workflow_abilities import choice_is_available
 
-ASSETS_DIR = (
-    pathlib.Path(__file__).parent.parent.parent / "src" / "MCPServer" / "lib" / "assets"
-)
-
+from archivematica.MCPServer.server import workflow
+from archivematica.MCPServer.server.workflow_abilities import choice_is_available
 
 CREATE_SIP_LINK_ID = "bb194013-597c-4e4a-8493-b36d190f8717"
 SEND_TO_BACKLOG_CHAIN_ID = "7065d256-2f47-4b7d-baec-2c4699626121"
@@ -16,8 +11,11 @@ SEND_TO_BACKLOG_CHAIN_ID = "7065d256-2f47-4b7d-baec-2c4699626121"
 
 @pytest.fixture
 def _workflow():
-    path = os.path.join(ASSETS_DIR, "workflow.json")
-    with open(path) as fp:
+    with open(
+        importlib.resources.files("archivematica.MCPServer")
+        / "assets"
+        / "workflow.json"
+    ) as fp:
         return workflow.load(fp)
 
 

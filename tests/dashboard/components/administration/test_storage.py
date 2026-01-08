@@ -1,7 +1,7 @@
 import pathlib
 from unittest import mock
 
-from components import helpers
+import pytest
 from django.test import TestCase
 
 TEST_USER_FIXTURE = (
@@ -12,20 +12,25 @@ TEST_USER_FIXTURE = (
 class TestStorage(TestCase):
     fixtures = [TEST_USER_FIXTURE]
 
+    @pytest.fixture(autouse=True)
+    def dashboard_uuid(self, dashboard_uuid):
+        return dashboard_uuid
+
     def setUp(self):
         self.client.login(username="test", password="test")
         self.url = "/administration/storage/"
-        helpers.set_setting("dashboard_uuid", "test-uuid")
 
     @mock.patch(
-        "components.administration.views.storage_service.get_location",
+        "archivematica.dashboard.components.administration.views.storage_service.get_location",
         side_effect=Exception(),
     )
     def test_ss_connection_fail(self, mock_get_location):
         response = self.client.get(self.url)
         self.assertIn("Error retrieving locations", response.content.decode("utf8"))
 
-    @mock.patch("components.administration.views.storage_service.get_location")
+    @mock.patch(
+        "archivematica.dashboard.components.administration.views.storage_service.get_location"
+    )
     def test_success(self, mock_get_location):
         mock_get_location.return_value = [
             {

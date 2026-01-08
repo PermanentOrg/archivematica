@@ -14,8 +14,8 @@ function dashboard::manage {
 	docker compose run \
 		--user=$(id -u):$(id -g) \
 		--rm --no-deps \
-		--workdir=/src/src/dashboard/src \
-		--entrypoint=/src/src/dashboard/src/manage.py \
+		--workdir=/src/src/archivematica/dashboard \
+		--entrypoint=/src/src/archivematica/dashboard/manage.py \
 			archivematica-dashboard "$@"
 }
 

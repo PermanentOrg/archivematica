@@ -1,5 +1,6 @@
 import collections
 import csv
+import importlib.resources
 import os
 import pathlib
 import random
@@ -7,18 +8,18 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
-from typing import List
 
-import archivematicaCreateMETSMetadataCSV
-import archivematicaCreateMETSRights
-import create_mets_v2
-import namespaces as ns
 import pytest
-from client.job import Job
 from django.test import TestCase
 from lxml import etree
-from main.models import RightsStatement
-from version import get_preservation_system_identifier
+
+from archivematica.archivematicaCommon import namespaces as ns
+from archivematica.archivematicaCommon.version import get_preservation_system_identifier
+from archivematica.dashboard.main.models import RightsStatement
+from archivematica.MCPClient.client.job import Job
+from archivematica.MCPClient.clientScripts import archivematicaCreateMETSMetadataCSV
+from archivematica.MCPClient.clientScripts import archivematicaCreateMETSRights
+from archivematica.MCPClient.clientScripts import create_mets_v2
 
 THIS_DIR = pathlib.Path(__file__).parent
 
@@ -30,7 +31,7 @@ mcp_job = Job("stub", "stub", [])
 class TestNormativeStructMap(TestCase):
     """Test creation of normative structMap."""
 
-    fixture_files: List[str] = []
+    fixture_files: list[str] = []
     fixtures = [os.path.join(THIS_DIR, "fixtures", p) for p in fixture_files]
 
     @pytest.fixture(autouse=True)
@@ -753,8 +754,11 @@ class TestCustomStructMap(TestCase):
         os.path.join("custom_structmaps", "model", "files.json"),
     ]
     fixtures = [os.path.join(THIS_DIR, "fixtures", p) for p in fixture_files]
-    mets_xsd_path = os.path.abspath(
-        os.path.join(THIS_DIR, "../../src/MCPClient/lib/assets/mets/mets.xsd")
+    mets_xsd_path = (
+        importlib.resources.files("archivematica.MCPClient")
+        / "assets"
+        / "mets"
+        / "mets.xsd"
     )
 
     @pytest.fixture(autouse=True)
@@ -864,18 +868,20 @@ class TestCustomStructMap(TestCase):
         )
         fnames = [label.attrib["LABEL"] for label in labels]
         uuids = [fptr.attrib["FILEID"] for fptr in fptrs]
-        assert isinstance(
-            self.structmap_div_element, etree._Element
-        ), "createFileSec didn't return an XML structure to work with"
+        assert isinstance(self.structmap_div_element, etree._Element), (
+            "createFileSec didn't return an XML structure to work with"
+        )
         assert self.count_dir_objects(self.objects_dir) == (
             len(fnames) and len(uuids)
         ), "Count of objects on disk and in fileSec do not match."
-        assert (
-            self.state.fileNameToFileID is not None
-        ), "fileNameToFileID mapping hasn't been generated"
-        assert (
-            self.count_dir_objects(self.objects_dir) == len(self.state.fileNameToFileID)
-        ), "State hasn't been generated for all objects on disk, duplicate names may not be counted for"
+        assert self.state.fileNameToFileID is not None, (
+            "fileNameToFileID mapping hasn't been generated"
+        )
+        assert self.count_dir_objects(self.objects_dir) == len(
+            self.state.fileNameToFileID
+        ), (
+            "State hasn't been generated for all objects on disk, duplicate names may not be counted for"
+        )
 
     def test_get_included_structmap_invalid_mets(self):
         """Integration test ensuring that it is possible for the mets
@@ -894,7 +900,9 @@ class TestCustomStructMap(TestCase):
         try:
             self.validate_mets(self.mets_xsd_path, broken_structmap_path)
         except etree.DocumentInvalid:
-            assert True, "Expecting a validation error so that we know validation is working correctly"
+            assert True, (
+                "Expecting a validation error so that we know validation is working correctly"
+            )
 
     def test_get_included_structmap_valid_mets(self):
         """Test the valid output of custom structmaps in create_mets_v2."""
@@ -977,20 +985,20 @@ class TestCustomStructMap(TestCase):
                     == f"structmap_{self.state.globalStructMapCounter}"
                 ), "structmap id is incorrect"
             else:
-                assert (
-                    custom_structmap.attrib["ID"].lower() == res.structmap_id
-                ), "structmap id hasn't been maintained"
+                assert custom_structmap.attrib["ID"].lower() == res.structmap_id, (
+                    "structmap id hasn't been maintained"
+                )
             fids = custom_structmap.xpath(
                 "//*[@FILEID]", namespaces={"mets:": ns.metsNS}
             )
             assert len(fids) == res.replaced_count, "Count of FILEIDs is incorrect"
-            assert len({fid.attrib["FILEID"] for fid in fids}) == len(
-                res.files
-            ), "Uneven replacement of IDs for files in structmap"
+            assert len({fid.attrib["FILEID"] for fid in fids}) == len(res.files), (
+                "Uneven replacement of IDs for files in structmap"
+            )
             for fileid in [fid.attrib["FILEID"] for fid in fids]:
-                assert fileid in list(
-                    self.state.fileNameToFileID.values()
-                ), "Expected FILEID not in returned structmap"
+                assert fileid in list(self.state.fileNameToFileID.values()), (
+                    "Expected FILEID not in returned structmap"
+                )
 
     def test_get_included_structmap_incomplete_mets(self):
         """Test the output of custom structmaps in create_mets_v2 where the
@@ -1024,9 +1032,9 @@ class TestCustomStructMap(TestCase):
                 state=self.state,
                 custom_structmap=res.structmap_name,
             )
-            assert (
-                custom_structmap == []
-            ), f"Return from include_custom_structmap should be an empty array: {custom_structmap}"
-            assert (
-                self.state.error_accumulator.error_count == 1
-            ), "error counter should be incremented on error"
+            assert custom_structmap == [], (
+                f"Return from include_custom_structmap should be an empty array: {custom_structmap}"
+            )
+            assert self.state.error_accumulator.error_count == 1, (
+                "error counter should be incremented on error"
+            )

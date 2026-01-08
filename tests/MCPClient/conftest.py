@@ -1,11 +1,13 @@
+import importlib.resources
 import pathlib
 
 import pytest
 import pytest_django
-from client.job import Job
 from django.utils import timezone
-from fpr import models as fprmodels
-from main import models
+
+from archivematica.dashboard.fpr import models as fprmodels
+from archivematica.dashboard.main import models
+from archivematica.MCPClient.client.job import Job
 
 
 @pytest.fixture(autouse=True)
@@ -14,10 +16,7 @@ def set_xml_catalog_files(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(
         "XML_CATALOG_FILES",
         str(
-            pathlib.Path(__file__).parent.parent.parent
-            / "src"
-            / "MCPClient"
-            / "lib"
+            importlib.resources.files("archivematica.MCPClient")
             / "assets"
             / "catalog"
             / "catalog.xml"
@@ -270,6 +269,6 @@ def settings(
     shared_directory_path: pathlib.Path,
 ) -> pytest_django.fixtures.SettingsWrapper:
     settings.SHARED_DIRECTORY = f"{shared_directory_path}/"
-    settings.PROCESSING_DIRECTORY = f'{shared_directory_path / "currentlyProcessing"}/'
+    settings.PROCESSING_DIRECTORY = f"{shared_directory_path / 'currentlyProcessing'}/"
 
     return settings

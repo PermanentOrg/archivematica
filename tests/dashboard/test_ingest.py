@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import pathlib
 import uuid
@@ -6,17 +7,21 @@ from unittest import mock
 
 import pytest
 from agentarchives.archivesspace import ArchivesSpaceError
-from archivematicaFunctions import b64decode_string
-from components import helpers
-from components.ingest.views import _adjust_directories_draggability
-from components.ingest.views import _es_results_to_appraisal_tab_format
-from components.ingest.views_as import get_as_system_client
 from django.test import TestCase
 from django.test.client import Client
 from django.urls import reverse
-from main.models import Access
-from main.models import ArchivesSpaceDIPObjectResourcePairing
-from main.models import DashboardSetting
+
+from archivematica.archivematicaCommon.archivematicaFunctions import b64decode_string
+from archivematica.dashboard.components.ingest.views import (
+    _adjust_directories_draggability,
+)
+from archivematica.dashboard.components.ingest.views import (
+    _es_results_to_appraisal_tab_format,
+)
+from archivematica.dashboard.components.ingest.views_as import get_as_system_client
+from archivematica.dashboard.main.models import Access
+from archivematica.dashboard.main.models import ArchivesSpaceDIPObjectResourcePairing
+from archivematica.dashboard.main.models import DashboardSetting
 
 TEST_USER_FIXTURE = pathlib.Path(__file__).parent / "fixtures" / "test_user.json"
 SIP_FIXTURE = pathlib.Path(__file__).parent / "fixtures" / "sip.json"
@@ -28,10 +33,13 @@ JOBS_SIP_COMPLETE_FIXTURE = (
 class TestIngest(TestCase):
     fixtures = [TEST_USER_FIXTURE, SIP_FIXTURE, JOBS_SIP_COMPLETE_FIXTURE]
 
+    @pytest.fixture(autouse=True)
+    def dashboard_uuid(self, dashboard_uuid):
+        return dashboard_uuid
+
     def setUp(self):
         self.client = Client()
         self.client.login(username="test", password="test")
-        helpers.set_setting("dashboard_uuid", "test-uuid")
 
     @mock.patch("agentarchives.archivesspace.ArchivesSpaceClient._login")
     def test_get_as_system_client(self, __):
@@ -73,7 +81,7 @@ class TestIngest(TestCase):
         response = self.client.get(url)
         assert response.status_code == 200
         title = "".join(
-            ["<h1>" "Normalization Event Detail<br />", "<small>test</small>", "</h1>"]
+            ["<h1>Normalization Event Detail<br />", "<small>test</small>", "</h1>"]
         )
         assert title in response.content.decode("utf8")
 
@@ -140,7 +148,7 @@ def _assert_file_node_properties_match_record(file_node, record):
 
 def test_appraisal_tab_node_formatter():
     """Test the _es_results_to_appraisal_tab_format helper that formats
-    the ElasticSearch results to be used in the appraisal tab JS code.
+    the search service results to be used in the appraisal tab JS code.
     """
     record = {
         "relative_path": "transfer-directory/data/objects/MARBLES.TGA",
@@ -367,14 +375,10 @@ def test_adjust_directories_draggability():
     assert not small_turtles["not_draggable"]
 
 
-@pytest.fixture
-def dashboard_uuid(db):
-    helpers.set_setting("dashboard_uuid", str(uuid.uuid4()))
-
-
 def test_ingest_upload_as_match_shows_deleted_rows(
     admin_client, dashboard_uuid, caplog
 ):
+    caplog.set_level(logging.DEBUG, "archivematica.dashboard")
     dip_uuid = uuid.uuid4()
     file_uuid = uuid.uuid4()
     resource_id = "/repositories/2/archival_objects/1"

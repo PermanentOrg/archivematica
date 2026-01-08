@@ -1,11 +1,16 @@
 import pathlib
 
-from components import helpers
-from components.administration.views_dip_upload import _AS_DICTNAME
-from components.administration.views_dip_upload import _ATOM_DICTNAME
+import pytest
 from django.test import TestCase
 from django.urls import reverse
-from main.models import DashboardSetting
+
+from archivematica.dashboard.components.administration.views_dip_upload import (
+    _AS_DICTNAME,
+)
+from archivematica.dashboard.components.administration.views_dip_upload import (
+    _ATOM_DICTNAME,
+)
+from archivematica.dashboard.main.models import DashboardSetting
 
 TEST_USER_FIXTURE = (
     pathlib.Path(__file__).parent.parent.parent / "fixtures" / "test_user.json"
@@ -15,10 +20,13 @@ TEST_USER_FIXTURE = (
 class TestDipUploadAsConfig(TestCase):
     fixtures = [TEST_USER_FIXTURE]
 
+    @pytest.fixture(autouse=True)
+    def dashboard_uuid(self, dashboard_uuid):
+        return dashboard_uuid
+
     def setUp(self):
         self.client.login(username="test", password="test")
         self.url = reverse("administration:dips_as")
-        helpers.set_setting("dashboard_uuid", "test-uuid")
 
     def test_get(self):
         response = self.client.get(self.url)
@@ -91,10 +99,13 @@ class TestDipUploadAsConfig(TestCase):
 class TestDipUploadAtomConfig(TestCase):
     fixtures = [TEST_USER_FIXTURE]
 
+    @pytest.fixture(autouse=True)
+    def dashboard_uuid(self, dashboard_uuid):
+        return dashboard_uuid
+
     def setUp(self):
         self.client.login(username="test", password="test")
         self.url = reverse("administration:dips_atom_index")
-        helpers.set_setting("dashboard_uuid", "test-uuid")
 
     def test_get(self):
         response = self.client.get(self.url)

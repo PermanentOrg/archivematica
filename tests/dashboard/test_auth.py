@@ -1,14 +1,15 @@
 import json
 import pathlib
 
-from components import helpers
-from components.helpers import generate_api_key
+import pytest
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.test.client import Client
 from django.urls import reverse
 from tastypie.models import ApiKey
+
+from archivematica.dashboard.components.helpers import generate_api_key
 
 TEST_USER_FIXTURE = pathlib.Path(__file__).parent / "fixtures" / "test_user.json"
 
@@ -24,8 +25,9 @@ class TestAuth(TestCase):
         reverse("api:get_levels_of_description"),
     )
 
-    def setUp(self):
-        helpers.set_setting("dashboard_uuid", "test-uuid")
+    @pytest.fixture(autouse=True)
+    def dashboard_uuid(self, dashboard_uuid):
+        return dashboard_uuid
 
     def authenticate(self):
         self.client = Client()

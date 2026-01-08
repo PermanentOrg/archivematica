@@ -25,16 +25,17 @@ from urllib.parse import urlencode
 import metsrw
 import pytest
 from agentarchives.atom.client import CommunicationError
-from components import helpers
-from components.archival_storage import atom
 from django.http import HttpResponse
 from django.http import HttpResponseNotFound
 from django.http import StreamingHttpResponse
 from django.test import TestCase
 from django.test.client import Client
 from django.urls import reverse
-from elasticsearch import Elasticsearch
-from main.models import DashboardSetting
+
+from archivematica.dashboard.components import helpers
+from archivematica.dashboard.components.archival_storage import atom
+from archivematica.search.service import AIPNotFoundError
+from archivematica.search.service import SearchService
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 CONTENT_DISPOSITION = "Content-Disposition"
@@ -44,16 +45,6 @@ JSON_MIME = "application/json"
 TEST_USER_FIXTURE = (
     pathlib.Path(__file__).parent.parent.parent / "fixtures" / "test_user.json"
 )
-
-
-@pytest.fixture
-def amsetup(db):
-    setting, _ = DashboardSetting.objects.get_or_create(
-        name="dashboard_uuid", defaults={"value": str(uuid.uuid4())}
-    )
-    return {
-        "uuid": setting.value,
-    }
 
 
 @pytest.fixture
@@ -111,28 +102,39 @@ def get_streaming_response(streaming_content):
     return response_text
 
 
-@mock.patch("elasticSearchFunctions.get_client")
-@mock.patch("elasticSearchFunctions.get_aip_data", side_effect=IndexError())
-def test_get_mets_unknown_mets(get_aip_data, get_client, amsetup, admin_client):
+@pytest.fixture
+def mock_search_service():
+    with mock.patch(
+        "archivematica.dashboard.components.archival_storage.views.setup_search_service_from_conf"
+    ) as mock_setup_search_service:
+        mock_search_service = mock.Mock(spec=SearchService)
+        mock_setup_search_service.return_value = mock_search_service
+        yield mock_search_service
+
+
+def test_get_mets_unknown_mets(mock_search_service, dashboard_uuid, admin_client):
+    mock_search_service.get_aip_data.side_effect = AIPNotFoundError("error")
     response = admin_client.get(
         "/archival-storage/download/aip/11111111-1111-1111-1111-111111111111/mets_download/"
     )
     assert isinstance(response, HttpResponseNotFound)
 
 
-@mock.patch("elasticSearchFunctions.get_client")
-@mock.patch("elasticSearchFunctions.get_aip_data")
-@mock.patch("components.helpers.stream_mets_from_storage_service")
+@mock.patch(
+    "archivematica.dashboard.components.helpers.stream_mets_from_storage_service"
+)
 def test_get_mets_known_mets(
     stream_mets_from_storage_service,
-    get_aip_data,
-    get_client,
-    amsetup,
+    mock_search_service,
+    dashboard_uuid,
     admin_client,
     mets_hdr,
 ):
     sip_uuid = "22222222-2222-2222-2222-222222222222"
-    get_aip_data.return_value = {"_source": {"name": f"transfer-{sip_uuid}"}}
+
+    mock_search_service.get_aip_data.return_value = {
+        "_source": {"name": f"transfer-{sip_uuid}"}
+    }
     mock_response = StreamingHttpResponse(mets_hdr)
     mock_content_type = "application/xml"
     mock_content_disposition = f"attachment; filename=METS.{sip_uuid}.xml;"
@@ -148,14 +150,15 @@ def test_get_mets_known_mets(
     assert response.get(CONTENT_DISPOSITION) == mock_content_disposition
 
 
-@mock.patch("elasticSearchFunctions.get_client")
-@mock.patch("storageService.pointer_file_url")
-@mock.patch("components.helpers.stream_file_from_storage_service")
+@mock.patch("archivematica.archivematicaCommon.storageService.pointer_file_url")
+@mock.patch(
+    "archivematica.dashboard.components.helpers.stream_file_from_storage_service"
+)
 def test_get_pointer_unknown_pointer(
     stream_file_from_storage_service,
     pointer_file_url,
-    get_client,
-    amsetup,
+    mock_search_service,
+    dashboard_uuid,
     admin_client,
 ):
     sip_uuid = "33333333-3333-3333-3333-333333333331"
@@ -175,10 +178,16 @@ def test_get_pointer_unknown_pointer(
     assert json.loads(response.content) == mock_error_message
 
 
-@mock.patch("storageService.pointer_file_url")
-@mock.patch("components.helpers.stream_file_from_storage_service")
+@mock.patch("archivematica.archivematicaCommon.storageService.pointer_file_url")
+@mock.patch(
+    "archivematica.dashboard.components.helpers.stream_file_from_storage_service"
+)
 def test_get_pointer_known_pointer(
-    stream_file_from_storage_service, pointer_file_url, amsetup, admin_client, mets_hdr
+    stream_file_from_storage_service,
+    pointer_file_url,
+    dashboard_uuid,
+    admin_client,
+    mets_hdr,
 ):
     sip_uuid = "44444444-4444-4444-4444-444444444444"
     pointer_url = (
@@ -201,7 +210,7 @@ def test_get_pointer_known_pointer(
     assert response.get(CONTENT_DISPOSITION) == content_disposition
 
 
-def test_search_rejects_unsupported_file_mime(amsetup, admin_client):
+def test_search_rejects_unsupported_file_mime(dashboard_uuid, admin_client):
     params = {"requestFile": "true", "file_mime": "application/json"}
     response = admin_client.get(
         "{}?{}".format(
@@ -214,10 +223,8 @@ def test_search_rejects_unsupported_file_mime(amsetup, admin_client):
     assert response.content == b"Please use ?mimeType=text/csv"
 
 
-@mock.patch("elasticSearchFunctions.get_client")
-@mock.patch("elasticsearch.Elasticsearch.search")
 @mock.patch(
-    "components.archival_storage.views.search_augment_aip_results",
+    "archivematica.dashboard.components.archival_storage.views.search_augment_aip_results",
     return_value=[
         {
             "status": "Stored",
@@ -254,7 +261,11 @@ def test_search_rejects_unsupported_file_mime(amsetup, admin_client):
     ],
 )
 def test_search_as_csv(
-    search_augment_aip_results, search, get_client, amsetup, admin_client, tmp_path
+    search_augment_aip_results,
+    mock_search_service,
+    dashboard_uuid,
+    admin_client,
+    tmp_path,
 ):
     """Test search as CSV
 
@@ -263,6 +274,38 @@ def test_search_as_csv(
     that various headers are set as well as testing whether or not the
     data is returned correctly.
     """
+    mock_search_service.search_aip_files.return_value = {
+        "aggregations": {
+            "aip_uuids": {
+                "buckets": [
+                    {"key": "a341dbc0-9715-4806-8477-fb407b105a5e", "doc_count": 2},
+                    {"key": "22423d5c-f992-4979-9390-1cb61c87da14", "doc_count": 2},
+                ]
+            }
+        }
+    }
+    mock_search_service.search_aips.return_value = {
+        "hits": {
+            "hits": [
+                {
+                    "_source": {
+                        "uuid": "a341dbc0-9715-4806-8477-fb407b105a5e",
+                        "name": "tz",
+                        "size": 0.1910095214843750,  # Size in MB
+                    }
+                },
+                {
+                    "_source": {
+                        "uuid": "22423d5c-f992-4979-9390-1cb61c87da14",
+                        "name": "tz",
+                        "size": 0.14501953125000000,  # Size in MB
+                    }
+                },
+            ],
+            "total": {"value": 2},
+        }
+    }
+
     REQUEST_PARAMS = {
         "requestFile": True,
         "mimeType": "text/csv",
@@ -292,14 +335,13 @@ def test_search_as_csv(
     )
 
 
-@mock.patch("elasticSearchFunctions.get_client", return_value=Elasticsearch())
-@mock.patch("elasticSearchFunctions.Elasticsearch.search")
-@mock.patch("components.archival_storage.views.search_augment_aip_results")
+@mock.patch(
+    "archivematica.dashboard.components.archival_storage.views.search_augment_aip_results"
+)
 def test_search_as_csv_invalid_route(
     search_augment_aip_results,
-    search,
-    get_client,
-    amsetup,
+    mock_search_service,
+    dashboard_uuid,
     admin_client,
     tmp_path,
 ):
@@ -313,11 +355,14 @@ def test_search_as_csv_invalid_route(
     """
     MOCK_TOTAL = 10
     AUG_RESULTS = {"mock": "response"}
-    search.return_value = {
+    mock_search_service.search_aip_files.return_value = {
         "hits": {"total": MOCK_TOTAL},
         "aggregations": {
             "aip_uuids": {"buckets": [{"key": "mocked", "doc_count": "mocked"}]}
         },
+    }
+    mock_search_service.search_aips.return_value = {
+        "hits": {"total": {"value": MOCK_TOTAL}}
     }
     search_augment_aip_results.return_value = [AUG_RESULTS]
     REQUEST_PARAMS = {"requestFile": False}
@@ -340,10 +385,13 @@ def test_search_as_csv_invalid_route(
 class TestArchivalStorageDataTableState(TestCase):
     fixtures = [TEST_USER_FIXTURE]
 
+    @pytest.fixture(autouse=True)
+    def dashboard_uuid(self, dashboard_uuid):
+        return dashboard_uuid
+
     def setUp(self):
         self.client = Client()
         self.client.login(username="test", password="test")
-        helpers.set_setting("dashboard_uuid", "test-uuid")
         self.data = '{"time":1588609847900,"columns":[{"visible":true},{"visible":true},{"visible":false},{"visible":true},{"visible":false},{"visible":false},{"visible":true},{"visible":true},{"visible":false},{"visible":true}]}'
 
     def test_save_datatable_state(self):
@@ -379,16 +427,13 @@ class TestArchivalStorageDataTableState(TestCase):
         assert payload["message"] == "Setting not found"
 
 
-@mock.patch("components.helpers.processing_config_path")
-@mock.patch("elasticSearchFunctions.get_client")
-@mock.patch("elasticSearchFunctions.get_aip_data")
-@mock.patch("components.archival_storage.forms.get_atom_client")
+@mock.patch("archivematica.dashboard.components.helpers.processing_config_path")
+@mock.patch("archivematica.dashboard.components.archival_storage.forms.get_atom_client")
 def test_view_aip_metadata_only_dip_upload_with_missing_description_slug(
     get_atom_client,
-    get_aip_data,
-    get_client,
     processing_config_path,
-    amsetup,
+    mock_search_service,
+    dashboard_uuid,
     admin_client,
     tmpdir,
     processing_configurations_dir,
@@ -396,12 +441,14 @@ def test_view_aip_metadata_only_dip_upload_with_missing_description_slug(
     processing_config_path.return_value = str(processing_configurations_dir)
     sip_uuid = uuid.uuid4()
     file_path = tmpdir.mkdir("file")
-    get_aip_data.return_value = {
+
+    mock_search_service.get_aip_data.return_value = {
         "_source": {
             "name": f"transfer-{sip_uuid}",
             "filePath": str(file_path),
         }
     }
+
     get_atom_client.return_value = mock.Mock(
         **{
             "find_parent_id_for_component.side_effect": CommunicationError(
@@ -420,7 +467,23 @@ def test_view_aip_metadata_only_dip_upload_with_missing_description_slug(
     )
 
 
-def test_create_aic_fails_if_query_is_not_passed(amsetup, admin_client):
+@mock.patch(
+    "archivematica.dashboard.components.archival_storage.views.setup_search_service_from_conf"
+)
+def test_create_aic_fails_if_query_is_not_passed(
+    mock_setup_search_service, dashboard_uuid, admin_client
+):
+    # Configure the mock search service
+    from unittest.mock import Mock
+
+    mock_search_service = Mock()
+    # Mock the methods that might be called by the execute view when following the redirect
+    mock_search_service.search_aips.return_value = {
+        "aggregations": {"total": {"value": 0}}
+    }
+    mock_search_service.count_aip_files.return_value = 0
+    mock_setup_search_service.return_value = mock_search_service
+
     params = {}
     response = admin_client.get(
         "{}?{}".format(
@@ -433,14 +496,28 @@ def test_create_aic_fails_if_query_is_not_passed(amsetup, admin_client):
     assert "Unable to create AIC: No AIPs selected" in response.content.decode()
 
 
-@mock.patch("elasticSearchFunctions.get_client")
-@mock.patch("databaseFunctions.createSIP")
+@mock.patch(
+    "archivematica.dashboard.components.archival_storage.views.setup_search_service_from_conf"
+)
+@mock.patch("archivematica.archivematicaCommon.databaseFunctions.createSIP")
 @mock.patch(
     "uuid.uuid4", return_value=uuid.UUID("1e23e6e2-02d7-4b2d-a648-caffa3b489f3")
 )
 def test_create_aic_creates_temporary_files(
-    uuid4, creat_sip, get_client, admin_client, settings, tmp_path, amsetup
+    uuid4,
+    creat_sip,
+    mock_setup_client,
+    admin_client,
+    settings,
+    tmp_path,
+    dashboard_uuid,
 ):
+    # Configure the mock search service
+    from unittest.mock import Mock
+
+    mock_search_service = Mock()
+    mock_setup_client.return_value = mock_search_service
+
     aipfiles_search_results = {
         "aggregations": {
             "aip_uuids": {
@@ -466,7 +543,7 @@ def test_create_aic_creates_temporary_files(
                         "created": 1689264994,
                         "encrypted": False,
                         "isPartOf": None,
-                        "location": "Store AIP in standard " "Archivematica Directory",
+                        "location": "Store AIP in standard Archivematica Directory",
                         "name": "artefactual",
                         "size": 4.80488395690918,
                         "status": "UPLOADED",
@@ -486,7 +563,7 @@ def test_create_aic_creates_temporary_files(
                         "created": 1689264872,
                         "encrypted": False,
                         "isPartOf": None,
-                        "location": "Store AIP in standard " "Archivematica Directory",
+                        "location": "Store AIP in standard Archivematica Directory",
                         "name": "bunny_1",
                         "size": 4.805169105529785,
                         "status": "UPLOADED",
@@ -502,9 +579,9 @@ def test_create_aic_creates_temporary_files(
         "timed_out": False,
         "took": 4,
     }
-    get_client.return_value = mock.Mock(
-        **{"search.side_effect": [aipfiles_search_results, aip_search_results]}
-    )
+    mock_search_service.search_aip_files.side_effect = [aipfiles_search_results]
+    mock_search_service.search_aips.side_effect = [aip_search_results]
+    mock_setup_client.return_value = mock_search_service
     d = tmp_path / "test-aic"
     d.mkdir()
     (d / "tmp").mkdir()
@@ -541,21 +618,20 @@ def processing_configurations_dir(tmp_path):
     return result
 
 
-@mock.patch("components.helpers.processing_config_path")
-@mock.patch(
-    "elasticSearchFunctions.get_aip_data",
-    return_value={"_source": {"name": "My AIP", "filePath": "path"}},
-)
-@mock.patch("elasticSearchFunctions.get_client")
+@mock.patch("archivematica.dashboard.components.helpers.processing_config_path")
 def test_view_aip_reingest_form_displays_processing_configurations_choices(
-    get_client,
-    get_aip_data,
     processing_config_path,
-    amsetup,
+    mock_search_service,
+    dashboard_uuid,
     admin_client,
     processing_configurations_dir,
 ):
     processing_config_path.return_value = str(processing_configurations_dir)
+
+    mock_search_service.get_aip_data.return_value = {
+        "_source": {"name": "My AIP", "filePath": "path"},
+    }
+
     response = admin_client.get(
         reverse("archival_storage:view_aip", args=[uuid.uuid4()])
     )
@@ -578,24 +654,34 @@ def test_view_aip_reingest_form_displays_processing_configurations_choices(
 @pytest.mark.parametrize(
     "error,message", [(False, "success!"), (True, "error!")], ids=["success", "error"]
 )
-@mock.patch("components.helpers.processing_config_path")
-@mock.patch("storageService.request_reingest")
-@mock.patch("elasticSearchFunctions.get_aip_data")
-@mock.patch("elasticSearchFunctions.get_client")
+@mock.patch("archivematica.dashboard.components.helpers.processing_config_path")
+@mock.patch("archivematica.archivematicaCommon.storageService.request_reingest")
 def test_view_aip_reingest_form_submits_reingest(
-    get_client,
-    get_aip_data,
     request_reingest,
     processing_config_path,
+    mock_search_service,
     error,
     message,
-    amsetup,
+    dashboard_uuid,
     admin_client,
     processing_configurations_dir,
 ):
     processing_config_path.return_value = str(processing_configurations_dir)
     request_reingest.return_value = {"error": error, "message": message}
     aip_uuid = str(uuid.uuid4())
+    mock_search_service.get_aip_data.return_value = {
+        "_id": "doc123",
+        "_source": {
+            "uuid": aip_uuid,
+            "name": "test-aip",
+            "status": "UPLOADED",
+            "size": 1024,
+        },
+    }
+    mock_search_service.search_aips.return_value = {
+        "aggregations": {"total": {"value": 1024}}
+    }
+
     reingest_type = "metadata"
     processing_config = "default"
 

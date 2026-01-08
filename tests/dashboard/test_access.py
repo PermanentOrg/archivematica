@@ -1,14 +1,15 @@
 import json
+import logging
 import pathlib
 from unittest import mock
 
-import archivematicaFunctions
 import pytest
-from components import helpers
 from django.test import TestCase
 from django.test.client import Client
 from django.urls import reverse
-from main import models
+
+from archivematica.archivematicaCommon import archivematicaFunctions
+from archivematica.dashboard.main import models
 
 TEST_USER_FIXTURE = pathlib.Path(__file__).parent / "fixtures" / "test_user.json"
 ACCESS_FIXTURE = pathlib.Path(__file__).parent / "fixtures" / "access.json"
@@ -17,10 +18,13 @@ ACCESS_FIXTURE = pathlib.Path(__file__).parent / "fixtures" / "access.json"
 class TestAccessAPI(TestCase):
     fixtures = [TEST_USER_FIXTURE, ACCESS_FIXTURE]
 
+    @pytest.fixture(autouse=True)
+    def dashboard_uuid(self, dashboard_uuid):
+        return dashboard_uuid
+
     def setUp(self):
         self.client = Client()
         self.client.login(username="test", password="test")
-        helpers.set_setting("dashboard_uuid", "test-uuid")
 
     def test_creating_arrange_directory(self):
         record_id = "/repositories/2/archival_objects/2"
@@ -60,10 +64,11 @@ class TestAccessAPI(TestCase):
         assert len(response_dict["entries"]) == 1
 
 
-@pytest.mark.django_db
-@pytest.fixture
-def dashboard_uuid():
-    helpers.set_setting("dashboard_uuid", "test-uuid")
+@pytest.fixture()
+def metadata_applies_to_type():
+    models.MetadataAppliesToType.objects.get_or_create(
+        pk="3e48343d-e2d2-4956-aaa3-b54d26eb9761", description="SIP"
+    )
 
 
 def _encode_record_id(record_id):
@@ -92,7 +97,7 @@ def test_access_arrange_start_sip_fails_if_arrange_mapping_does_not_exist(
 
 
 @pytest.mark.django_db
-@mock.patch("components.access.views.get_as_system_client")
+@mock.patch("archivematica.dashboard.components.access.views.get_as_system_client")
 def test_access_arrange_start_sip_fails_if_arrange_does_not_exist(
     get_as_system_client, dashboard_uuid, admin_client
 ):
@@ -120,7 +125,7 @@ def test_access_arrange_start_sip_fails_if_arrange_does_not_exist(
 
 @pytest.mark.django_db
 @mock.patch(
-    "components.access.views.get_as_system_client",
+    "archivematica.dashboard.components.access.views.get_as_system_client",
     return_value=mock.Mock(
         **{
             "get_record.side_effect": [
@@ -161,15 +166,19 @@ def test_access_arrange_start_sip_fails_if_resource_creators_cannot_be_fetched(
 
 
 @pytest.mark.django_db
-@mock.patch("components.filesystem_ajax.views.copy_from_arrange_to_completed_common")
-@mock.patch("components.access.views.get_as_system_client")
+@mock.patch(
+    "archivematica.dashboard.components.filesystem_ajax.views.copy_from_arrange_to_completed_common"
+)
+@mock.patch("archivematica.dashboard.components.access.views.get_as_system_client")
 def test_access_arrange_start_sip(
     get_as_system_client,
     copy_from_arrange_to_completed_common,
     dashboard_uuid,
     admin_client,
     caplog,
+    metadata_applies_to_type,
 ):
+    caplog.set_level(logging.DEBUG, logger="archivematica.dashboard")
     # Mock expected responses from ArchivesSpace.
     archival_object = {
         "resource": {"ref": "/repositories/2/resources/10"},

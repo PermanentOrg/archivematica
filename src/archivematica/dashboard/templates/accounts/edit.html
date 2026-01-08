@@ -1,0 +1,51 @@
+{% extends "layout_fluid.html" %}
+{% load breadcrumb %}
+{% load user %}
+{% load i18n %}
+
+{% block title %}{% blocktrans with user=user %}Users - Edit {{ user }}{% endblocktrans %}{% endblock %}
+{% block h1 %}{% blocktrans with user=user %}Users - Edit {{ user }}{% endblocktrans %}{% endblock %}
+{% block page_id %}accounts-edit{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid">
+
+  <div class="row">
+
+    {% include "administration/sidebar.html" %}
+
+    <div class="col-md-10">
+
+      <ul class="breadcrumb">
+        {% trans "Users" as users %}
+        {% breadcrumb_url users 'accounts:accounts_index' %}
+        {% breadcrumb title %}
+      </ul>
+
+      <form method="post" action="{% url 'accounts:edit' user.id %}">
+
+        {% csrf_token %}
+
+        {% include "_form.html" %}
+
+        {% include "_form.html" with form=userprofileform %}
+
+        {% if return_view %}
+        <input type="hidden" name="return_view" value="{{ return_view }}" />
+        {% endif %}
+
+        <div class="actions">
+          <button type="submit" class="btn btn-primary">{% trans "Save" %}</button>
+          <a class="btn btn-default" href="{% url 'accounts:accounts_index' %}">{% trans "Cancel" %}</a>
+        </div>
+
+      </form>
+
+    </div>
+
+  </div>
+
+</div>
+
+{% endblock %}

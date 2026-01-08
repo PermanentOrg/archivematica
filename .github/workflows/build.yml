@@ -34,7 +34,7 @@ jobs:
       ARCHIVEMATICA_MCP_SERVER_IMAGE_TAG: ${{ steps.generate_mcp_server_image_tag.outputs.ARCHIVEMATICA_MCP_SERVER_IMAGE_TAG}}
       ARCHIVEMATICA_MCP_CLIENT_IMAGE_TAG: ${{ steps.generate_mcp_client_image_tag.outputs.ARCHIVEMATICA_MCP_CLIENT_IMAGE_TAG}}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
       - name: Set ECR domain env var
         id: set_ecr_domain
         run: echo "ECR_DOMAIN=364159549467.dkr.ecr.$AWS_REGION.amazonaws.com" >> "$GITHUB_ENV"
@@ -62,7 +62,7 @@ jobs:
     env:
       ARCHIVEMATICA_DASHBOARD_IMAGE_TAG: ${{ needs.generate_image_tags.outputs.ARCHIVEMATICA_DASHBOARD_IMAGE_TAG}}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
         with:
           repository: ${{ inputs.target_repo }}
       - run: docker build -t $ARCHIVEMATICA_DASHBOARD_IMAGE_TAG --target archivematica-dashboard -f hack/Dockerfile .
@@ -81,7 +81,7 @@ jobs:
     env:
       ARCHIVEMATICA_MCP_SERVER_IMAGE_TAG: ${{ needs.generate_image_tags.outputs.ARCHIVEMATICA_MCP_SERVER_IMAGE_TAG}}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
         with:
           repository: ${{ inputs.target_repo }}
       - run: docker build -t $ARCHIVEMATICA_MCP_SERVER_IMAGE_TAG --target archivematica-mcp-server -f hack/Dockerfile .
@@ -100,7 +100,7 @@ jobs:
     env:
       ARCHIVEMATICA_MCP_CLIENT_IMAGE_TAG: ${{ needs.generate_image_tags.outputs.ARCHIVEMATICA_MCP_CLIENT_IMAGE_TAG}}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
         with:
           repository: ${{ inputs.target_repo }}
       - run: docker build -t $ARCHIVEMATICA_MCP_CLIENT_IMAGE_TAG --target archivematica-mcp-client -f hack/Dockerfile .

@@ -1,12 +1,14 @@
 import pathlib
+import uuid
 from unittest import mock
 
 import pytest
 import pytest_django
-import transcribe_file
-from client.job import Job
-from fpr import models as fprmodels
-from main import models
+
+from archivematica.dashboard.fpr import models as fprmodels
+from archivematica.dashboard.main import models
+from archivematica.MCPClient.client.job import Job
+from archivematica.MCPClient.clientScripts import transcribe_file
 
 EXECUTE_OR_RUN_STDOUT = "Hello"
 
@@ -61,7 +63,10 @@ def preservation_file_format_version(
 
 
 @pytest.mark.django_db
-@mock.patch("transcribe_file.executeOrRun", return_value=(0, EXECUTE_OR_RUN_STDOUT, ""))
+@mock.patch(
+    "archivematica.MCPClient.clientScripts.transcribe_file.executeOrRun",
+    return_value=(0, EXECUTE_OR_RUN_STDOUT, ""),
+)
 def test_main(
     execute_or_run: mock.Mock,
     sip_file: models.File,
@@ -252,7 +257,7 @@ def test_main_if_fprule_is_disabled(
 
 
 @pytest.mark.django_db
-@mock.patch("transcribe_file.executeOrRun")
+@mock.patch("archivematica.MCPClient.clientScripts.transcribe_file.executeOrRun")
 def test_main_if_command_is_not_bash_script(
     execute_or_run: mock.Mock,
     fpcommand: fprmodels.FPCommand,
@@ -283,3 +288,26 @@ def test_main_if_command_is_not_bash_script(
     # Ensure the arguments passed is a list.
     execute_or_run_args = call_kwargs["arguments"]
     assert isinstance(execute_or_run_args, list)
+
+
+@pytest.mark.django_db
+def test_call_handles_invalid_job_arguments() -> None:
+    task_uuid = uuid.uuid4()
+    # None in the file_uuid represents a task on a file that has been
+    # read by the MCPServer from the file system and not from the database.
+    file_uuid = "None"
+    job = mock.Mock(
+        args=[
+            "transcribe_file",
+            str(task_uuid),
+            str(file_uuid),
+        ],
+        spec=Job,
+    )
+    job.JobContext = mock.MagicMock()
+
+    transcribe_file.call([job])
+
+    job.print_error.assert_called_once_with(
+        f"argument file_uuid: invalid UUID value: '{file_uuid}'"
+    )

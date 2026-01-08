@@ -1,8 +1,9 @@
 from unittest.mock import patch
 
-import archivematicaFunctions as am
 import bagit
 import pytest
+
+from archivematica.archivematicaCommon import archivematicaFunctions as am
 
 
 def test_find_mets_file_match(tmp_path):
@@ -43,7 +44,9 @@ def test_get_bag_size(tmpdir):
     bag.info["Payload-Oxum"] = size_oxum
     bag.save()
     # Assertions
-    with patch("archivematicaFunctions.os") as mock_os:
+    with patch(
+        "archivematica.archivematicaCommon.archivematicaFunctions.os"
+    ) as mock_os:
         # Test returned value against expected
         size = am.get_bag_size(bag, bag_dir.strpath)
         assert size == int(size_oxum.split(".")[0])
@@ -115,15 +118,25 @@ def test_get_oidc_secondary_providers_ignores_provider_if_client_id_and_secret_a
     monkeypatch.setenv("OIDC_RP_CLIENT_ID_BAR", "bar-client-id")
     monkeypatch.setenv("OIDC_RP_CLIENT_SECRET_BAZ", "foo-secret")
 
-    assert am.get_oidc_secondary_providers(["FOO", "BAR", "BAZ"]) == {
+    assert am.get_oidc_secondary_providers(
+        ["FOO", "BAR", "BAZ"], {"given_name": "first_name", "family_name": "last_name"}
+    ) == {
         "FOO": {
             "OIDC_OP_AUTHORIZATION_ENDPOINT": "",
             "OIDC_OP_JWKS_ENDPOINT": "",
             "OIDC_OP_LOGOUT_ENDPOINT": "",
             "OIDC_OP_TOKEN_ENDPOINT": "",
             "OIDC_OP_USER_ENDPOINT": "",
+            "OIDC_OP_SET_ROLES_FROM_CLAIMS": False,
+            "OIDC_OP_ROLE_CLAIM_PATH": "realm_access.roles",
+            "OIDC_ACCESS_ATTRIBUTE_MAP": {
+                "given_name": "first_name",
+                "family_name": "last_name",
+            },
             "OIDC_RP_CLIENT_ID": "foo-client-id",
             "OIDC_RP_CLIENT_SECRET": "foo-client-secret",
+            "OIDC_ROLE_CLAIM_ADMIN": "admin",
+            "OIDC_ROLE_CLAIM_DEFAULT": "default",
         }
     }
 
@@ -136,15 +149,25 @@ def test_get_oidc_secondary_providers_strips_provider_names(
     monkeypatch.setenv("OIDC_RP_CLIENT_ID_BAR", "bar-client-id")
     monkeypatch.setenv("OIDC_RP_CLIENT_SECRET_BAR", "bar-client-secret")
 
-    assert am.get_oidc_secondary_providers(["  FOO", " BAR  "]) == {
+    assert am.get_oidc_secondary_providers(
+        ["  FOO", " BAR  "], {"given_name": "first_name", "family_name": "last_name"}
+    ) == {
         "FOO": {
             "OIDC_OP_AUTHORIZATION_ENDPOINT": "",
             "OIDC_OP_JWKS_ENDPOINT": "",
             "OIDC_OP_LOGOUT_ENDPOINT": "",
             "OIDC_OP_TOKEN_ENDPOINT": "",
             "OIDC_OP_USER_ENDPOINT": "",
+            "OIDC_OP_SET_ROLES_FROM_CLAIMS": False,
+            "OIDC_OP_ROLE_CLAIM_PATH": "realm_access.roles",
+            "OIDC_ACCESS_ATTRIBUTE_MAP": {
+                "given_name": "first_name",
+                "family_name": "last_name",
+            },
             "OIDC_RP_CLIENT_ID": "foo-client-id",
             "OIDC_RP_CLIENT_SECRET": "foo-client-secret",
+            "OIDC_ROLE_CLAIM_ADMIN": "admin",
+            "OIDC_ROLE_CLAIM_DEFAULT": "default",
         },
         "BAR": {
             "OIDC_OP_AUTHORIZATION_ENDPOINT": "",
@@ -152,8 +175,16 @@ def test_get_oidc_secondary_providers_strips_provider_names(
             "OIDC_OP_LOGOUT_ENDPOINT": "",
             "OIDC_OP_TOKEN_ENDPOINT": "",
             "OIDC_OP_USER_ENDPOINT": "",
+            "OIDC_OP_SET_ROLES_FROM_CLAIMS": False,
+            "OIDC_OP_ROLE_CLAIM_PATH": "realm_access.roles",
+            "OIDC_ACCESS_ATTRIBUTE_MAP": {
+                "given_name": "first_name",
+                "family_name": "last_name",
+            },
             "OIDC_RP_CLIENT_ID": "bar-client-id",
             "OIDC_RP_CLIENT_SECRET": "bar-client-secret",
+            "OIDC_ROLE_CLAIM_ADMIN": "admin",
+            "OIDC_ROLE_CLAIM_DEFAULT": "default",
         },
     }
 
@@ -166,15 +197,25 @@ def test_get_oidc_secondary_providers_capitalizes_provider_names(
     monkeypatch.setenv("OIDC_RP_CLIENT_ID_BAR", "bar-client-id")
     monkeypatch.setenv("OIDC_RP_CLIENT_SECRET_BAR", "bar-client-secret")
 
-    assert am.get_oidc_secondary_providers(["fOo", "bar"]) == {
+    assert am.get_oidc_secondary_providers(
+        ["fOo", "bar"], {"given_name": "first_name", "family_name": "last_name"}
+    ) == {
         "FOO": {
             "OIDC_OP_AUTHORIZATION_ENDPOINT": "",
             "OIDC_OP_JWKS_ENDPOINT": "",
             "OIDC_OP_LOGOUT_ENDPOINT": "",
             "OIDC_OP_TOKEN_ENDPOINT": "",
             "OIDC_OP_USER_ENDPOINT": "",
+            "OIDC_OP_SET_ROLES_FROM_CLAIMS": False,
+            "OIDC_OP_ROLE_CLAIM_PATH": "realm_access.roles",
+            "OIDC_ACCESS_ATTRIBUTE_MAP": {
+                "given_name": "first_name",
+                "family_name": "last_name",
+            },
             "OIDC_RP_CLIENT_ID": "foo-client-id",
             "OIDC_RP_CLIENT_SECRET": "foo-client-secret",
+            "OIDC_ROLE_CLAIM_ADMIN": "admin",
+            "OIDC_ROLE_CLAIM_DEFAULT": "default",
         },
         "BAR": {
             "OIDC_OP_AUTHORIZATION_ENDPOINT": "",
@@ -182,7 +223,15 @@ def test_get_oidc_secondary_providers_capitalizes_provider_names(
             "OIDC_OP_LOGOUT_ENDPOINT": "",
             "OIDC_OP_TOKEN_ENDPOINT": "",
             "OIDC_OP_USER_ENDPOINT": "",
+            "OIDC_OP_SET_ROLES_FROM_CLAIMS": False,
+            "OIDC_OP_ROLE_CLAIM_PATH": "realm_access.roles",
+            "OIDC_ACCESS_ATTRIBUTE_MAP": {
+                "given_name": "first_name",
+                "family_name": "last_name",
+            },
             "OIDC_RP_CLIENT_ID": "bar-client-id",
             "OIDC_RP_CLIENT_SECRET": "bar-client-secret",
+            "OIDC_ROLE_CLAIM_ADMIN": "admin",
+            "OIDC_ROLE_CLAIM_DEFAULT": "default",
         },
     }

@@ -3,7 +3,8 @@ from unittest import mock
 
 import pytest
 import requests
-from components import helpers
+
+from archivematica.dashboard.components import helpers
 
 CONTENT_TYPE = "content-type"
 CONTENT_DISPOSITION = "content-disposition"
@@ -54,7 +55,8 @@ def mets_stream(tmpdir, mets_hdr):
 
 
 @mock.patch(
-    "components.helpers.get_setting", return_value="http://storage-service-url/"
+    "archivematica.dashboard.components.helpers.get_setting",
+    return_value="http://storage-service-url/",
 )
 @mock.patch("amclient.AMClient.extract_file")
 def test_stream_mets_from_disconnected_storage(extract_file, get_setting):
@@ -71,7 +73,8 @@ def test_stream_mets_from_disconnected_storage(extract_file, get_setting):
 
 
 @mock.patch(
-    "components.helpers.get_setting", return_value="http://storage-service-url/"
+    "archivematica.dashboard.components.helpers.get_setting",
+    return_value="http://storage-service-url/",
 )
 @mock.patch("amclient.AMClient.extract_file")
 def test_stream_mets_from_storage_no_file(extract_file, get_setting, tmp_path):
@@ -91,7 +94,8 @@ def test_stream_mets_from_storage_no_file(extract_file, get_setting, tmp_path):
 
 
 @mock.patch(
-    "components.helpers.get_setting", return_value="http://storage-service-url/"
+    "archivematica.dashboard.components.helpers.get_setting",
+    return_value="http://storage-service-url/",
 )
 @mock.patch("amclient.AMClient.extract_file")
 def test_stream_mets_from_storage_success(extract_file, get_setting, mets_hdr, tmpdir):
@@ -178,7 +182,7 @@ def test_stream_pointer_from_storage_no_content_type(get, tmpdir, mets_hdr):
 
 
 def test_send_file(tmp_path):
-    # Contents of dashboard/src/media/images/1x1-pixel.png
+    # Contents of dashboard/media/images/1x1-pixel.png
     data = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x01\x03\x00\x00\x00%\xdbV\xca\x00\x00\x00\x03PLTE\x00\x00\x00\xa7z=\xda\x00\x00\x00\x01tRNS\x00@\xe6\xd8f\x00\x00\x00\nIDAT\x08\x1dc`\x00\x00\x00\x02\x00\x01\xcf\xc85\xe5\x00\x00\x00\x00IEND\xaeB`\x82"
     f = tmp_path / "image.png"
     f.write_bytes(data)

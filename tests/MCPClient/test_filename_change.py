@@ -2,18 +2,20 @@ import os
 import shutil
 import uuid
 
-import change_names
-import change_object_names
 import pytest
-from client.job import Job
 from django.test import TestCase
-from main.models import Agent
-from main.models import Directory
-from main.models import Event
-from main.models import File
-from main.models import Transfer
-from main.models import UnitVariable
 from pytest_django.asserts import assertQuerysetEqual
+
+from archivematica.archivematicaCommon.version import get_full_version
+from archivematica.dashboard.main.models import Agent
+from archivematica.dashboard.main.models import Directory
+from archivematica.dashboard.main.models import Event
+from archivematica.dashboard.main.models import File
+from archivematica.dashboard.main.models import Transfer
+from archivematica.dashboard.main.models import UnitVariable
+from archivematica.MCPClient.client.job import Job
+from archivematica.MCPClient.clientScripts import change_names
+from archivematica.MCPClient.clientScripts import change_object_names
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -139,8 +141,9 @@ def is_uuid(uuid_):
 
 def verify_event_details(event):
     assert (
-        'prohibited characters removed: program="change_names"; ' 'version="1.10.'
-    ) in event.event_detail
+        event.event_detail
+        == f'prohibited characters removed: program="change_names"; version="{get_full_version()}"'
+    )
     assertQuerysetEqual(
         event.agents.all(),
         [
@@ -176,6 +179,16 @@ class TestFilenameChange(TestCase):
             identifiervalue=str(user.pk),
             name=f'username="{user.username}", first_name="{user.first_name}", last_name="{user.last_name}"',
             identifiertype="Archivematica user pk",
+        )
+
+    @pytest.fixture(autouse=True)
+    def organization_agent(self):
+        return Agent.objects.get_or_create(
+            pk=2,
+            agenttype="organization",
+            identifiervalue="ORG",
+            name="Your Organization Name Here",
+            identifiertype="repository code",
         )
 
     @pytest.fixture(autouse=True)
@@ -311,9 +324,25 @@ def test_change_name_raises_valueerror_on_empty_string():
         change_names.change_name("")
 
 
+@pytest.fixture
+def organization_agent():
+    return Agent.objects.get_or_create(
+        pk=2,
+        agenttype="organization",
+        identifiervalue="ORG",
+        name="Your Organization Name Here",
+        identifiertype="repository code",
+    )
+
+
 @pytest.mark.django_db
 def test_change_transfer_with_multiple_files(
-    monkeypatch, tmp_path, transfer, subdir_path, multiple_transfer_file_objs
+    monkeypatch,
+    tmp_path,
+    transfer,
+    subdir_path,
+    multiple_transfer_file_objs,
+    organization_agent,
 ):
     monkeypatch.setattr(change_object_names.NameChanger, "BATCH_SIZE", 10)
 

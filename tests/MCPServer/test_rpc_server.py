@@ -1,17 +1,14 @@
-import pathlib
+import importlib.resources
 import threading
 import uuid
 from unittest import mock
 
 import pytest
 from django.utils import timezone
-from main import models
-from server import rpc_server
-from server import workflow
 
-ASSETS_DIR = (
-    pathlib.Path(__file__).parent.parent.parent / "src" / "MCPServer" / "lib" / "assets"
-)
+from archivematica.dashboard.main import models
+from archivematica.MCPServer.server import rpc_server
+from archivematica.MCPServer.server import workflow
 
 
 @pytest.mark.django_db
@@ -24,7 +21,11 @@ def test_approve_partial_reingest_handler():
         currentstep=models.Job.STATUS_AWAITING_DECISION,
     )
     package_queue = mock.MagicMock()
-    with open(ASSETS_DIR / "workflow.json") as fp:
+    with open(
+        importlib.resources.files("archivematica.MCPServer")
+        / "assets"
+        / "workflow.json"
+    ) as fp:
         wf = workflow.load(fp)
     shutdown_event = threading.Event()
     shutdown_event.set()

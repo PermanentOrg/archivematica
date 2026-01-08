@@ -2,9 +2,10 @@ import os
 from io import StringIO
 
 import pytest
-from appconfig import Config
-from appconfig import process_search_enabled
 from django.core.exceptions import ImproperlyConfigured
+
+from archivematica.archivematicaCommon.appconfig import Config
+from archivematica.archivematicaCommon.appconfig import process_search_enabled
 
 CONFIG_MAPPING = {
     "search_enabled": {
@@ -32,7 +33,7 @@ CONFIG_MAPPING = {
 )
 def test_mapping_list_config_file(option, value, expect):
     config = Config(env_prefix="ARCHIVEMATICA_DASHBOARD", attrs=CONFIG_MAPPING)
-    config.read_defaults(StringIO("[Dashboard]\n" f"{option} = {value}"))
+    config.read_defaults(StringIO(f"[Dashboard]\n{option} = {value}"))
     if isinstance(expect, list):
         assert sorted(config.get("search_enabled")) == sorted(expect)
     else:
