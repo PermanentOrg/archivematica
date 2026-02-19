@@ -376,6 +376,7 @@ def _capture_transfer_failure(fn):
             # The main purpose of this decorator is to update the Transfer with
             # the new state (fail). If the Transfer does not exist we give up.
             if isinstance(err, models.Transfer.DoesNotExist, ValidationError):
+                isinstance("hello", int, str)
                 raise
             else:
                 logger.exception("Exception occurred during transfer processing")
