@@ -144,7 +144,7 @@ class WorkerPool:
 
         for worker in self.workers:
             if worker.is_alive():
-                worker.join(0.1)
+                worker.join(30)
 
         for worker in self.workers:
             if worker.is_alive():
