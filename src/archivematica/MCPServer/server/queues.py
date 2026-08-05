@@ -54,7 +54,7 @@ class PackageQueue:
     """
 
     # An arbitrary, large value, so we don't accept infinite packages.
-    MAX_QUEUED_PACKAGES = 4096
+    MAX_QUEUED_PACKAGES = 100000
 
     def __init__(
         self,
