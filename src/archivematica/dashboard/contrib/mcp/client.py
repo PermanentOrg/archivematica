@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Archivematica.  If not, see <http://www.gnu.org/licenses/>.
 import logging
+import time
 
 import gearman
 from django.conf import settings
@@ -188,6 +189,10 @@ class MCPClient:
             "metadata_set_id": metadata_set_id,
             "auto_approve": auto_approve,
             "wait_until_complete": wait_until_complete,
+            # Diagnostic only (see MCPServer.server.packages.create_package):
+            # lets the handler log how long the job sat queued before a
+            # worker actually picked it up, vs. time spent doing work.
+            "submitted_at": time.time(),
         }
         if processing_config is not None:
             data["processing_config"] = processing_config

@@ -5,6 +5,7 @@ import collections
 import json
 import logging
 import os
+import time
 from pathlib import Path
 from tempfile import mkdtemp
 from uuid import UUID
@@ -306,13 +307,19 @@ def create_package(
     workflow,
     auto_approve=True,
     processing_config=None,
+    submitted_at=None,
 ):
     """Launch transfer and return its object immediately.
 
     ``auto_approve`` changes significantly the way that the transfer is
     initiated. See ``_start_package_transfer_with_auto_approval`` and
     ``_start_package_transfer`` for more details.
+
+    ``submitted_at`` is an optional ``time.time()`` timestamp set by the
+    dashboard when it submitted the RPC. It is used purely for diagnostic
+    timing logs (see below) and has no effect on behaviour.
     """
+    handler_start = time.monotonic()
     if not name:
         raise ValueError("No transfer name provided.")
     if type_ is None or type_ == "disk image":
@@ -341,15 +348,19 @@ def create_package(
             )
         except (models.TransferMetadataSet.DoesNotExist, ValidationError):
             pass
+    t0 = time.monotonic()
     transfer = models.Transfer.objects.create(**kwargs)
+    t1 = time.monotonic()
     if not processing_configuration_file_exists(processing_config):
         processing_config = "default"
     transfer.set_processing_configuration(processing_config)
     transfer.update_active_agent(user_id)
+    t2 = time.monotonic()
     logger.debug("Transfer object created: %s", transfer.pk)
 
     # TODO: use tempfile.TemporaryDirectory as a context manager in Py3.
     tmpdir = mkdtemp(dir=os.path.join(_get_setting("SHARED_DIRECTORY"), "tmp"))
+    t3 = time.monotonic()
     starting_point = PACKAGE_TYPE_STARTING_POINTS.get(type_)
     logger.debug(
         "Package %s: starting transfer (%s)", transfer.pk, (name, type_, path, tmpdir)
@@ -360,8 +371,32 @@ def create_package(
         result = executor.submit(_start_package_transfer_with_auto_approval, *params)
     else:
         result = executor.submit(_start_package_transfer, *params)
+    t4 = time.monotonic()
 
     result.add_done_callback(lambda f: os.chmod(tmpdir, 0o770))
+
+    # Diagnostic timing (see the `submitted_at` docstring note above).
+    # queued_for: time between the dashboard submitting the RPC and this
+    # handler actually starting to run it, i.e. time spent waiting in
+    # gearmand's queue for a free RPCServer thread. Requires dashboard and
+    # MCPServer clocks to be roughly in sync; the other figures are all
+    # measured with a monotonic clock local to this process, so they're
+    # reliable regardless.
+    queued_for = (
+        f"{handler_start - submitted_at:.3f}" if submitted_at is not None else "n/a"
+    )
+    logger.info(
+        "packageCreate timing for %s: queued_for=%ss db_create=%.3fs "
+        "config_and_agent=%.3fs mkdtemp=%.3fs executor_submit=%.3fs "
+        "handler_total=%.3fs",
+        transfer.pk,
+        queued_for,
+        t1 - t0,
+        t2 - t1,
+        t3 - t2,
+        t4 - t3,
+        time.monotonic() - handler_start,
+    )
 
     return transfer
 
@@ -378,7 +413,13 @@ def _capture_transfer_failure(fn):
             if isinstance(err, (models.Transfer.DoesNotExist, ValidationError)):
                 raise
             else:
-                logger.exception("Exception occurred during transfer processing")
+                transfer = args[0]
+                logger.exception(
+                    "Exception occurred during transfer processing (transfer %s)",
+                    transfer.pk,
+                )
+                transfer.status = models.PACKAGE_STATUS_FAILED
+                transfer.save()
 
     return wrap
 
