@@ -21,7 +21,72 @@ from inotify_simple import flags
 IS_LINUX = sys.platform.startswith("linux")
 WATCHED_BASE_DIR = os.path.abspath(settings.WATCH_DIRECTORY)
 
+MOUNTINFO_PATH = "/proc/self/mountinfo"
+
+# Filesystems where inotify cannot observe changes made by other clients.
+NETWORK_FILESYSTEM_TYPES = frozenset({"nfs", "nfs4"})
+
 logger = logging.getLogger("archivematica.mcp.server.watchdirs")
+
+
+def _unescape_mountinfo_field(field):
+    """Decode the octal escapes mountinfo uses in path fields."""
+    for escape, character in (
+        ("\\040", " "),
+        ("\\011", "\t"),
+        ("\\012", "\n"),
+        ("\\134", "\\"),
+    ):
+        field = field.replace(escape, character)
+    return field
+
+
+def _filesystem_type(path, mountinfo_path=MOUNTINFO_PATH):
+    """Return the type of the filesystem that ``path`` lives on.
+
+    Resolves to the most specific mount containing ``path``, so a path under a
+    bind- or sub-mount reports that mount rather than its parent. Returns None
+    when the type cannot be determined, e.g. on a platform without
+    ``/proc/self/mountinfo``.
+    """
+    try:
+        with open(mountinfo_path) as mountinfo:
+            lines = mountinfo.readlines()
+    except OSError:
+        return None
+
+    path = os.path.abspath(path)
+    best_mount_point = None
+    best_type = None
+
+    for line in lines:
+        # Optional fields sit between the mount point and the " - " separator,
+        # so the two halves have to be parsed separately.
+        before, separator, after = line.partition(" - ")
+        if not separator:
+            continue
+        before_fields = before.split()
+        after_fields = after.split()
+        if len(before_fields) < 5 or not after_fields:
+            continue
+
+        mount_point = _unescape_mountinfo_field(before_fields[4])
+        if path != mount_point and not path.startswith(mount_point.rstrip("/") + "/"):
+            continue
+        if best_mount_point is None or len(mount_point) > len(best_mount_point):
+            best_mount_point = mount_point
+            best_type = after_fields[0]
+
+    return best_type
+
+
+def _list_watched_dir_entries(path):
+    """
+    Return a ``(path, name, is_dir)`` tuple for each entry in ``path``.
+    Raises OSError if ``path`` cannot be read.
+    """
+    with os.scandir(path) as entries:
+        return [(entry.path, entry.name, entry.is_dir()) for entry in entries]
 
 
 def watch_directories_poll(
@@ -34,28 +99,43 @@ def watch_directories_poll(
     Accepts an iterable of workflow WatchedDir objects, a shutdown event, and a
     callback to be called when content appears in the watched dir.
     """
-    # paths that have already appeared in watch directories
-    known_paths = set()
+    # Paths that have already appeared in watch directories, tracked per watched directory.
+    known_paths = {}
 
     while not shutdown_event.is_set():
-        current_paths = set()
-
         for watched_dir in watched_dirs:
             path = os.path.join(WATCHED_BASE_DIR, watched_dir.path.lstrip("/"))
-            for item in os.scandir(path):
-                if watched_dir.only_dirs and not item.is_dir():
-                    continue
-                elif item.path in known_paths:
-                    # Re-add to current entries, so we keep tracking it
-                    current_paths.add(item.path)
+
+            try:
+                entries = _list_watched_dir_entries(path)
+            except OSError:
+                # On a network filesystem this is expected occasionally, e.g. a
+                # stale handle caused by another node renaming an entry out of
+                # this directory mid-scan. Keep what we knew and retry.
+                logger.warning("Unable to scan watched dir %s", path, exc_info=True)
+                continue
+
+            seen_paths = known_paths.get(path, frozenset())
+            current_paths = set()
+
+            for item_path, _item_name, is_dir in entries:
+                if watched_dir.only_dirs and not is_dir:
                     continue
 
-                current_paths.add(item.path)
-                callback(item.path, watched_dir)
+                # Recorded before the callback runs, so that a callback which
+                # raises is not retried on every subsequent pass.
+                current_paths.add(item_path)
+                if item_path in seen_paths:
+                    continue
 
-        # Update what we know about from the last pass, so that it doesn't grow
-        # endlessly
-        known_paths = current_paths
+                try:
+                    callback(item_path, watched_dir)
+                except Exception:
+                    logger.exception("Error starting chain for %s", item_path)
+
+            # Update what we know about from the last pass, so that it doesn't
+            # grow endlessly
+            known_paths[path] = current_paths
 
         time.sleep(interval)
 
@@ -65,10 +145,12 @@ def watch_directories_inotify(
 ):
     """
     Watch the directories given via inotify. This is a very efficient way to handle
-    watches, however it requires linux, and may not work with NFS mounts.
+    watches, however it requires linux and a local filesystem.
 
     Accepts an iterable of workflow WatchedDir objects, a shutdown event, and a
     callback to be called when content appears in the watched dir.
+
+    Raises RuntimeError if any watched directory is on a network filesystem.
     """
     if not IS_LINUX:
         warnings.warn(
@@ -76,6 +158,19 @@ def watch_directories_inotify(
             RuntimeWarning,
             stacklevel=2,
         )
+
+    for watched_dir in watched_dirs:
+        path = os.path.join(WATCHED_BASE_DIR, watched_dir.path.lstrip("/"))
+        filesystem_type = _filesystem_type(path)
+        if filesystem_type in NETWORK_FILESYSTEM_TYPES:
+            raise RuntimeError(
+                f'The watched directory "{path}" is on a {filesystem_type} '
+                "filesystem. inotify is only told about changes made through "
+                "the local kernel, so it never sees a transfer moved into a "
+                "watched directory by another node sharing this filesystem, "
+                "and those units would stall without any error. Set the "
+                '"watch_directory_method" setting to "poll" instead.'
+            )
 
     inotify = INotify()
     watch_flags = flags.CREATE | flags.MOVED_TO
