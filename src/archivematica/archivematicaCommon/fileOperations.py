@@ -19,6 +19,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -147,6 +148,15 @@ def addFileToSIP(
     )
 
 
+# On a shared filesystem, a directory that another host has moved is still cached
+# locally under its old parent. Renaming it makes the kernel relocate that cached
+# entry, which needs a lock the rename itself already holds, so the lookup fails
+# with ESTALE to avoid deadlocking. The failed attempt repairs the cache as it
+# unwinds, so we only need two attempts to get past this error.
+RENAME_ATTEMPTS = 2
+RENAME_RETRY_DELAY = 0.1
+
+
 def rename(source, destination, printfn=print, should_exit=False):
     """Used to move/rename directories. This function was before used to wrap the operation with sudo."""
     if source == destination:
@@ -155,13 +165,25 @@ def rename(source, destination, printfn=print, should_exit=False):
         return 0
 
     command = ["mv", source, destination]
-    exitCode, stdOut, stdError = executeOrRun("command", command, "", printing=False)
-    if exitCode:
-        printfn("exitCode:", exitCode, file=sys.stderr)
-        printfn(stdOut, file=sys.stderr)
-        printfn(stdError, file=sys.stderr)
-        if should_exit:
-            exit(exitCode)
+    for attempt in range(1, RENAME_ATTEMPTS + 1):
+        exitCode, stdOut, stdError = executeOrRun(
+            "command", command, "", printing=False
+        )
+        if not exitCode:
+            if attempt > 1:
+                printfn(
+                    f"Renamed {source} to {destination} on attempt {attempt}.",
+                    file=sys.stderr,
+                )
+            return exitCode
+        if attempt < RENAME_ATTEMPTS:
+            time.sleep(RENAME_RETRY_DELAY)
+
+    printfn("exitCode:", exitCode, file=sys.stderr)
+    printfn(stdOut, file=sys.stderr)
+    printfn(stdError, file=sys.stderr)
+    if should_exit:
+        exit(exitCode)
 
     return exitCode
 

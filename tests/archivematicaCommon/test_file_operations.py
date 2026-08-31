@@ -1,15 +1,18 @@
 import pathlib
+import sys
 from unittest import mock
 
 import pytest
 from django.db.models import Q
 
+from archivematica.archivematicaCommon.fileOperations import RENAME_ATTEMPTS
 from archivematica.archivematicaCommon.fileOperations import (
     FindFileInNormalizatonCSVError,
 )
 from archivematica.archivematicaCommon.fileOperations import addAccessionEvent
 from archivematica.archivematicaCommon.fileOperations import findFileInNormalizationCSV
 from archivematica.archivematicaCommon.fileOperations import get_extract_dir_name
+from archivematica.archivematicaCommon.fileOperations import rename
 from archivematica.dashboard.main.models import SIP
 from archivematica.dashboard.main.models import Event
 from archivematica.dashboard.main.models import File
@@ -268,4 +271,61 @@ def test_findFileInNormalizationCSV_fails_if_multiple_target_files_exist(
     printfn.assert_called_once_with(
         f"More than one result found for {purpose} file ({target_file}) in DB.",
         file=mock.ANY,
+    )
+
+
+def test_rename_is_a_noop_when_source_and_destination_match():
+    printfn = mock.Mock()
+
+    assert rename("/same", "/same", printfn=printfn) == 0
+
+    printfn.assert_called_once_with(
+        "Source and destination are the same, nothing to do."
+    )
+
+
+@mock.patch("archivematica.archivematicaCommon.fileOperations.executeOrRun")
+def test_rename_does_not_retry_a_successful_move(execute_or_run):
+    execute_or_run.return_value = (0, "", "")
+
+    assert rename("/src", "/dst") == 0
+
+    assert execute_or_run.call_count == 1
+
+
+@mock.patch("archivematica.archivematicaCommon.fileOperations.time.sleep")
+@mock.patch("archivematica.archivematicaCommon.fileOperations.executeOrRun")
+def test_rename_retries_after_a_failed_attempt(execute_or_run, sleep):
+    """A transient ESTALE clears once the first attempt has unwound."""
+    execute_or_run.side_effect = [
+        (1, "", "mv: cannot move '/src' to '/dst': Stale file handle"),
+        (0, "", ""),
+    ]
+    printfn = mock.Mock()
+
+    assert rename("/src", "/dst", printfn=printfn) == 0
+
+    assert execute_or_run.call_count == 2
+    printfn.assert_called_once_with(
+        "Renamed /src to /dst on attempt 2.", file=sys.stderr
+    )
+
+
+@mock.patch("archivematica.archivematicaCommon.fileOperations.time.sleep")
+@mock.patch("archivematica.archivematicaCommon.fileOperations.executeOrRun")
+def test_rename_gives_up_and_reports_the_exit_code(execute_or_run, sleep):
+    """A move that keeps failing still surfaces mv's exit code and output."""
+    execute_or_run.return_value = (
+        1,
+        "",
+        "mv: cannot stat '/src': No such file or directory",
+    )
+    printfn = mock.Mock()
+
+    assert rename("/src", "/dst", printfn=printfn) == 1
+
+    assert execute_or_run.call_count == RENAME_ATTEMPTS
+    printfn.assert_any_call("exitCode:", 1, file=sys.stderr)
+    printfn.assert_any_call(
+        "mv: cannot stat '/src': No such file or directory", file=sys.stderr
     )
