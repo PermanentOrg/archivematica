@@ -8,6 +8,7 @@ processing config file operations.
 import abc
 import logging
 import os
+import time
 
 from django.conf import settings
 from lxml import etree
@@ -300,10 +301,34 @@ def get_processing_fields(workflow, lang="en"):
     return [field.to_dict(workflow, lang) for field in processing_fields]
 
 
+# On a shared filesystem, a package directory that another host has moved can
+# still be cached locally under its old parent, so the first lookup of a file
+# inside it fails. The failed lookup repairs the cache, so a second attempt
+# finds the file. See the matching retry in fileOperations.rename.
+PROCESSING_XML_LOOKUP_ATTEMPTS = 2
+PROCESSING_XML_LOOKUP_RETRY_DELAY = 0.1
+
+
+def _processing_xml_exists(processing_file_path):
+    for attempt in range(1, PROCESSING_XML_LOOKUP_ATTEMPTS + 1):
+        if os.path.isfile(processing_file_path):
+            if attempt > 1:
+                logger.info(
+                    "Found processing config at %s on attempt %s",
+                    processing_file_path,
+                    attempt,
+                )
+            return True
+        if attempt < PROCESSING_XML_LOOKUP_ATTEMPTS:
+            time.sleep(PROCESSING_XML_LOOKUP_RETRY_DELAY)
+    return False
+
+
 def load_processing_xml(package_path):
     processing_file_path = os.path.join(package_path, settings.PROCESSING_XML_FILE)
 
-    if not os.path.isfile(processing_file_path):
+    if not _processing_xml_exists(processing_file_path):
+        logger.warning("Processing config not found at %s", processing_file_path)
         return None
 
     try:
@@ -325,6 +350,12 @@ def load_preconfigured_choice(package_path, workflow_link_id):
         for preconfigured_choice in processing_xml.findall(".//preconfiguredChoice"):
             if preconfigured_choice.find("appliesTo").text == str(workflow_link_id):
                 choice = preconfigured_choice.find("goToChain").text
+        if choice is None:
+            logger.info(
+                "No preconfigured choice for link %s in processing config at %s",
+                workflow_link_id,
+                package_path,
+            )
 
     return choice
 

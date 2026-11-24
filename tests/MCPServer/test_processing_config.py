@@ -3,11 +3,16 @@ from unittest import mock
 
 import pytest
 
+from archivematica.MCPServer.server.processing_config import (
+    PROCESSING_XML_LOOKUP_ATTEMPTS,
+)
 from archivematica.MCPServer.server.processing_config import ChainChoicesField
 from archivematica.MCPServer.server.processing_config import ReplaceDictField
 from archivematica.MCPServer.server.processing_config import SharedChainChoicesField
 from archivematica.MCPServer.server.processing_config import StorageLocationField
 from archivematica.MCPServer.server.processing_config import get_processing_fields
+from archivematica.MCPServer.server.processing_config import load_preconfigured_choice
+from archivematica.MCPServer.server.processing_config import load_processing_xml
 from archivematica.MCPServer.server.processing_config import (
     processing_configuration_file_exists,
 )
@@ -424,3 +429,37 @@ def test_processing_configuration_file_exists_with_nonexistent_file(isfile, logg
     logger.debug.assert_called_once_with(
         "Processing configuration file for %s does not exist", "bogus.xml"
     )
+
+
+@mock.patch("archivematica.MCPServer.server.processing_config.time.sleep")
+def test_load_processing_xml_gives_up_and_logs_missing_file(sleep, tmp_path, caplog):
+    assert load_processing_xml(str(tmp_path)) is None
+    assert sleep.call_count == PROCESSING_XML_LOOKUP_ATTEMPTS - 1
+    assert "Processing config not found" in caplog.text
+
+
+@mock.patch("archivematica.MCPServer.server.processing_config.time.sleep")
+@mock.patch("os.path.isfile", side_effect=[False, True])
+def test_load_processing_xml_retries_a_failed_lookup(
+    isfile, sleep, tmp_path, caplog, settings
+):
+    """A lookup that fails on stale NFS client state succeeds on the retry."""
+    (tmp_path / settings.PROCESSING_XML_FILE).write_text("<processingMCP/>")
+    caplog.set_level("INFO")
+
+    assert load_processing_xml(str(tmp_path)) is not None
+
+    assert isfile.call_count == 2
+    assert "on attempt 2" in caplog.text
+    assert "not found" not in caplog.text
+
+
+def test_load_preconfigured_choice_logs_missing_choice(tmp_path, caplog, settings):
+    (tmp_path / settings.PROCESSING_XML_FILE).write_text(
+        "<processingMCP><preconfiguredChoices><preconfiguredChoice>"
+        "<appliesTo>other-link</appliesTo><goToChain>chain</goToChain>"
+        "</preconfiguredChoice></preconfiguredChoices></processingMCP>"
+    )
+    caplog.set_level("INFO")
+    assert load_preconfigured_choice(str(tmp_path), "link-id") is None
+    assert "No preconfigured choice for link link-id" in caplog.text
